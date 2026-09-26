@@ -13,7 +13,7 @@ AI-driven recommendations · Knowledge-gap detection · Computer-vision video an
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-14+-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
-[Features](#-features) • [Architecture](#-architecture) • [Quick Start](#-quick-start) • [API](#-api-overview) • [Contributing](#-contributing)
+[Features](#-features) • [Tech Stack](#-tech-stack) • [Architecture](#-architecture) • [Project Structure](#-project-structure) • [Quick Start](#-quick-start) • [Dependencies](#-dependencies) • [API](#-api-overview)
 
 </div>
 
@@ -82,6 +82,84 @@ Feed it a topic. It searches, analyzes the video's transcript *and* its visuals 
 </tr>
 </table>
 
+## 🛠️ Tech Stack
+
+<table>
+<tr><th>Layer</th><th>Technology</th></tr>
+<tr>
+<td><strong>Frontend</strong></td>
+<td>
+
+React 19 · React Router 7 · Vite 6 · Axios
+
+</td>
+</tr>
+<tr>
+<td><strong>Backend</strong></td>
+<td>
+
+FastAPI 0.115 (Python 3.12) · Uvicorn (ASGI) · Pydantic v2
+
+</td>
+</tr>
+<tr>
+<td><strong>Database & ORM</strong></td>
+<td>
+
+PostgreSQL · SQLAlchemy 2.0 · Alembic (migrations) · `psycopg2`
+
+</td>
+</tr>
+<tr>
+<td><strong>Auth & Security</strong></td>
+<td>
+
+JWT (`python-jose`) · `passlib` + `bcrypt` · Google OAuth 2.0
+
+</td>
+</tr>
+<tr>
+<td><strong>AI / ML</strong></td>
+<td>
+
+Google Gemini (`google-genai`) · `sentence-transformers` · `scikit-learn` · `numpy` · `joblib`
+
+</td>
+</tr>
+<tr>
+<td><strong>Computer Vision</strong></td>
+<td>
+
+OpenCV (`opencv-python-headless`) · Tesseract OCR (`pytesseract`) · Pillow
+
+</td>
+</tr>
+<tr>
+<td><strong>NLP / i18n</strong></td>
+<td>
+
+`langdetect` · `youtube-transcript-api` · custom multilingual embeddings & routing
+
+</td>
+</tr>
+<tr>
+<td><strong>Testing</strong></td>
+<td>
+
+`pytest` · `pytest-asyncio`
+
+</td>
+</tr>
+<tr>
+<td><strong>Infra / Tooling</strong></td>
+<td>
+
+Alembic migrations · `.env`-based config (`pydantic-settings`) · GitHub Actions (`.github/`)
+
+</td>
+</tr>
+</table>
+
 ## 🏗️ Architecture
 
 ```mermaid
@@ -98,12 +176,14 @@ flowchart LR
         API --> NOTES[Notes & Quiz]
         API --> VISION[Computer Vision]
         API --> PROG[Progress]
+        API --> LANG[Language Service]
     end
 
     SEARCH --> YT[(YouTube Data API)]
     VISION --> CV[OpenCV + Tesseract OCR]
     NOTES --> GEMINI[(Google Gemini)]
     REC --> ML[ML Models: difficulty · knowledge-gap · recommendation]
+    LANG --> EMBED[Multilingual Embeddings]
     KG --> DB[(PostgreSQL)]
     LEARN --> DB
     PROG --> DB
@@ -120,8 +200,18 @@ flowchart LR
     style YT fill:#FF0000,color:#fff,stroke:#333
 ```
 
+### Request flow, step by step
+
+1. **Search** — Learner searches a topic → `search` router queries the **YouTube Data API** and returns candidate videos.
+2. **Analyze** — `videoes` router pulls transcripts (`youtube-transcript-api`) and hands frames to the **computer-vision pipeline** (slide/code/diagram/scene/text detectors + visual-complexity scoring).
+3. **Score** — The `ai/` layer scores difficulty and computes embeddings (`sentence-transformers`) for semantic search and topic classification.
+4. **Learn** — Learner starts a session (`learning` router); every interaction is logged as an event tied to a `LearningSession`.
+5. **Track** — `progress` and `knowledge` routers update the learner's `Progress` and check the `KnowledgeRelationship` graph for gaps and readiness.
+6. **Recommend** — `recommendations` router combines the ML recommendation model + knowledge gaps to suggest the next video/topic.
+7. **Reinforce** — `notes` and `quiz` routers call **Gemini** to generate study notes and quizzes, translated via the `multilingual/` package when needed.
+
 <details>
-<summary><strong>🗺️ Data model at a glance</strong> (click to expand)</summary>
+<summary><strong>🗺️ Data model (entity relationships)</strong> — click to expand</summary>
 <br>
 
 ```mermaid
@@ -133,13 +223,131 @@ erDiagram
     TOPIC ||--o{ PROGRESS : "measured for"
     TOPIC ||--o{ KNOWLEDGE_RELATIONSHIP : "prerequisite of"
     TOPIC ||--o{ TOPIC : "parent / children"
+    TOPIC ||--o{ KNOWLEDGE : "understanding of"
     VIDEO ||--o{ LEARNING_SESSION : "watched in"
     VIDEO ||--o{ RECOMMENDATION : "suggested as"
     QUIZ ||--o{ QUIZ_QUESTION : contains
-    TOPIC ||--o{ KNOWLEDGE : "understanding of"
 ```
 
+**Core tables:** `User`, `Topic`, `Video`, `LearningSession`, `Progress`, `Recommendation`, `Knowledge`, `KnowledgeRelationship`, `Quiz`, `QuizQuestion`.
+
 </details>
+
+## 🗂️ Project Structure
+
+```
+learnix/
+├── backend/
+│   ├── app/
+│   │   ├── ai/                            # ML & generative AI layer
+│   │   │   ├── difficulty_model.py           # Video difficulty classifier (RandomForest)
+│   │   │   ├── knowledge_gap_model.py        # Knowledge-gap classifier
+│   │   │   ├── recommendation_model.py       # Recommendation ranker
+│   │   │   ├── embeddings.py                 # Sentence-transformer embeddings
+│   │   │   ├── semantic_search.py            # Embedding-based topic/video search
+│   │   │   ├── topic_classifier.py           # Topic classification
+│   │   │   ├── knowledge_graph.py            # Prerequisite graph logic
+│   │   │   └── gemini_client.py              # Google Gemini wrapper
+│   │   │
+│   │   ├── api/                            # FastAPI routers (one per domain)
+│   │   │   ├── auth.py · google.py            # Auth, JWT, Google OAuth
+│   │   │   ├── search.py · videoes.py         # Search & video analysis
+│   │   │   ├── learning.py · recommendations.py
+│   │   │   ├── knowledge.py · progress.py
+│   │   │   ├── notes.py · quiz.py
+│   │   │   ├── vision.py · language.py
+│   │   │
+│   │   ├── computer_vision/                # Frame-level video analysis
+│   │   │   ├── frame_extractor.py
+│   │   │   ├── slide_detector.py · code_detector.py
+│   │   │   ├── diagram_detector.py · text_detector.py
+│   │   │   ├── scene_detector.py
+│   │   │   ├── visual_complexity.py
+│   │   │   └── vision_pipeline.py             # Orchestrates all detectors
+│   │   │
+│   │   ├── core/                           # Cross-cutting concerns
+│   │   │   ├── security.py · middleware.py
+│   │   │   ├── logging.py · exceptions.py
+│   │   │   └── cache.py · rate_limiter.py
+│   │   │
+│   │   ├── database/                       # Persistence layer
+│   │   │   ├── connection.py · crud.py
+│   │   │   └── migrations/
+│   │   │
+│   │   ├── models/                         # SQLAlchemy ORM models
+│   │   │   ├── user.py · topic.py · video.py
+│   │   │   ├── learning_session.py · progress.py
+│   │   │   ├── recommendation.py · knowledge.py · quiz.py
+│   │   │
+│   │   ├── multilingual/                   # i18n / NLP
+│   │   │   ├── language_detector.py · language_router.py
+│   │   │   ├── multilingual_embeddings.py
+│   │   │   ├── multilingual_summarizer.py · multilingual_quiz.py
+│   │   │
+│   │   ├── schemas/                        # Pydantic request/response models
+│   │   ├── services/                       # Business logic (one per feature)
+│   │   │   ├── youtube_service.py · transcript_service.py
+│   │   │   ├── difficulty_service.py · recommendation_service.py
+│   │   │   ├── knowledge_gap_service.py · learning_path_service.py
+│   │   │   ├── personalization_service.py · progress_service.py
+│   │   │   ├── notes_service.py · quiz_service.py
+│   │   │   ├── topic_search.py · video_feature_service.py
+│   │   │   ├── google_auth_service.py · email_service.py
+│   │   │
+│   │   ├── utils/                          # Helpers, validators, scoring, text processing
+│   │   ├── config.py                        # Env-driven settings (pydantic-settings)
+│   │   └── main.py                          # FastAPI app entrypoint & router wiring
+│   │
+│   ├── alembic/                              # DB migration scripts + env
+│   ├── alembic.ini
+│   ├── tests/
+│   │   ├── unit/ · integration/
+│   │   └── conftest.py
+│   ├── requirements.txt
+│   ├── runtime.txt                            # Python version pin (3.12)
+│   └── .env.example
+│
+├── frontend/
+│   ├── src/
+│   │   ├── components/                       # Reusable UI (16 components)
+│   │   │   ├── Navbar/ · ProfileMenu/ · SearchBar/
+│   │   │   ├── VideoCard/ · VideoGrid/ · RecommendationCard/
+│   │   │   ├── KnowledgeMap/ · KnowledgeGap/ · LearningPath/
+│   │   │   ├── DifficultyBadge/ · LevelSelector/ · LanguageSelector/
+│   │   │   ├── NotesViewer/ · Quiz/ · ProgressChart/ · CVInsights/
+│   │   │   ├── ProtectedRoute/ · Loading/ · ErrorMessage/
+│   │   │
+│   │   ├── pages/                            # Route-level views (13 pages)
+│   │   │   ├── Home/ · Login/ · Register/
+│   │   │   ├── ForgotPassword/ · ResetPassword/
+│   │   │   ├── Search/ · VideoLearning/ · Dashboard/
+│   │   │   ├── KnowledgePage/ · LearningPathPage/
+│   │   │   ├── Notes/ · QuizPage/ · Profile/ · Settings/
+│   │   │
+│   │   ├── context/                          # AuthContext, LanguageContext, ThemeContext
+│   │   ├── hooks/                             # useAuth, useLanguage, useLearning, useTheme
+│   │   ├── services/                          # Axios API clients (auth, search, learning, notes, knowledge, recommendation)
+│   │   ├── utils/                              # constants, formatters, validators
+│   │   ├── App.jsx · Main.jsx · index.css
+│   │
+│   ├── index.html
+│   ├── vite.config.js
+│   ├── package.json
+│   └── .env.example
+│
+├── data/
+│   └── datasets/                              # CSV training data (video features, gaps, interactions)
+│
+├── scripts/                                     # Offline ML pipeline
+│   ├── prepare_datasets.py
+│   ├── train_difficulty_model.py
+│   ├── train_knowledge_gap_model.py
+│   └── train_recommendation_model.py
+│
+├── .github/                                      # CI workflows
+├── LICENSE
+└── README.md
+```
 
 ## 🚀 Quick Start
 
@@ -190,6 +398,59 @@ npm run preview
 
 </details>
 
+## 📦 Dependencies
+
+<details>
+<summary><strong>Backend — <code>requirements.txt</code></strong> (click to expand)</summary>
+<br>
+
+| Package | Version | Purpose |
+|---|---|---|
+| `fastapi` | 0.115.12 | Web framework |
+| `uvicorn[standard]` | 0.34.2 | ASGI server |
+| `pydantic` | 2.11.3 | Data validation |
+| `pydantic-settings` | 2.9.1 | Env-based config |
+| `email-validator` | 2.2.0 | Email validation |
+| `sqlalchemy` | 2.0.40 | ORM |
+| `psycopg2-binary` | 2.9.10 | PostgreSQL driver |
+| `alembic` | 1.15.2 | DB migrations |
+| `python-jose[cryptography]` | 3.4.0 | JWT signing/verification |
+| `passlib[bcrypt]` | 1.7.4 | Password hashing |
+| `bcrypt` | 4.3.0 | Hashing backend |
+| `httpx` | 0.28.1 | Async HTTP client |
+| `google-genai` | 1.12.1 | Google Gemini SDK |
+| `sentence-transformers` | 4.1.0 | Text embeddings |
+| `numpy` | 2.2.5 | Numerical computing |
+| `scikit-learn` | 1.8.0 | ML models (RandomForest, etc.) |
+| `joblib` | 1.4.2 | Model serialization |
+| `langdetect` | 1.0.9 | Language detection |
+| `youtube-transcript-api` | 1.0.3 | Transcript fetching |
+| `opencv-python-headless` | 4.11.0.86 | Computer vision |
+| `pytesseract` | 0.3.13 | OCR |
+| `Pillow` | 11.2.1 | Image processing |
+| `python-multipart` | 0.0.20 | Form/file parsing |
+| `pytest` | 8.3.5 | Testing framework |
+| `pytest-asyncio` | 0.26.0 | Async test support |
+
+**System dependency:** [Tesseract OCR](https://github.com/tesseract-ocr/tesseract) must be installed on the host (used by `pytesseract`).
+
+</details>
+
+<details>
+<summary><strong>Frontend — <code>package.json</code></strong> (click to expand)</summary>
+<br>
+
+| Package | Version | Purpose |
+|---|---|---|
+| `react` | ^19.0.0 | UI library |
+| `react-dom` | ^19.0.0 | DOM renderer |
+| `react-router-dom` | ^7.5.0 | Client-side routing |
+| `axios` | ^1.8.4 | HTTP client |
+| `vite` | ^6.2.6 *(dev)* | Build tool / dev server |
+| `@vitejs/plugin-react` | ^4.4.1 *(dev)* | React support for Vite |
+
+</details>
+
 ## ⚙️ Environment Variables
 
 <details>
@@ -204,14 +465,13 @@ npm run preview
 | `DATABASE_URL` | PostgreSQL connection string (`postgresql+psycopg2://...`) |
 | `JWT_SECRET_KEY` | Secret used to sign JWTs |
 | `JWT_ALGORITHM` | JWT signing algorithm (default: `HS256`) |
-| `ACCESS_TOKEN_EXPIRE_MINUTES` | Access token lifetime in minutes |
+| `JWT_ACCESS_TOKEN_EXPIRE_MINUTES` | Access token lifetime in minutes |
 | `PASSWORD_RESET_TOKEN_EXPIRE_MINUTES` | Password reset token lifetime |
 | `YOUTUBE_API_KEY` | YouTube Data API key |
 | `GEMINI_API_KEY` | Google Gemini API key |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google OAuth credentials |
 | `GOOGLE_REDIRECT_URI` | OAuth callback URL |
-| `FRONTEND_URL` | Frontend origin (used for CORS) |
-| `SUPPORTED_LANGUAGES` | JSON list of language codes, e.g. `["en","bn","hi"]` |
+| `FRONTEND_URL` | Frontend origin (used for CORS, default `http://localhost:5173`) |
 
 </details>
 
@@ -281,37 +541,6 @@ All routes are prefixed with `/api`. Once the backend is running, explore them l
 
 </details>
 
-## 🗂️ Project Structure
-
-```
-learnix/
-├── backend/
-│   ├── app/
-│   │   ├── ai/                 # Difficulty, embeddings, recommendations, Gemini client
-│   │   ├── api/                 # FastAPI routers
-│   │   ├── computer_vision/     # Frame extraction & slide/code/diagram/text detection
-│   │   ├── core/                 # Logging, middleware, security, caching, rate limiting
-│   │   ├── database/             # Connection, CRUD helpers, migrations
-│   │   ├── models/               # SQLAlchemy ORM models
-│   │   ├── multilingual/         # Language detection, routing, multilingual NLP
-│   │   ├── schemas/               # Pydantic request/response schemas
-│   │   ├── services/              # Business logic layer
-│   │   ├── utils/                  # Helpers, validators, scoring, text processing
-│   │   ├── config.py                # App settings (env-driven)
-│   │   └── main.py                  # FastAPI entrypoint
-│   ├── alembic/                      # DB migrations
-│   ├── tests/                        # Unit + integration tests
-│   └── requirements.txt
-├── frontend/
-│   └── src/
-│       ├── components/                # Reusable UI components
-│       ├── pages/                     # Dashboard, Search, Quiz, Profile, etc.
-│       ├── context/ · hooks/ · services/ · utils/
-├── data/datasets/                      # CSV training data
-├── scripts/                             # Model training / dataset prep
-└── LICENSE
-```
-
 ## 🧪 Running Tests
 
 ```bash
@@ -319,7 +548,7 @@ cd backend
 pytest
 ```
 
-Organized under `backend/tests/unit` and `backend/tests/integration`.
+Organized under `backend/tests/unit` and `backend/tests/integration`, with shared fixtures in `conftest.py`.
 
 ## ☁️ Deployment Checklist
 
