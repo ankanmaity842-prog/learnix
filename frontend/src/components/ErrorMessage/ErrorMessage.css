@@ -1,0 +1,50 @@
+.error-message {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  width: min(100%, 600px);
+  padding: 18px;
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  border-radius: 14px;
+  background: rgba(127, 29, 29, 0.12);
+  color: #f8fafc;
+}
+
+.error-icon {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  font-weight: 800;
+}
+
+.error-content h3 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.error-content p {
+  margin: 5px 0 12px;
+  color: #94a3b8;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.error-retry {
+  border: 0;
+  border-radius: 8px;
+  padding: 8px 13px;
+  background: #2563eb;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.error-retry:hover {
+  background: #1d4ed8;
+}

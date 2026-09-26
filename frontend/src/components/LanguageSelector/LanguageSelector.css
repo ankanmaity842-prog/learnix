@@ -1,0 +1,15 @@
+.language-selector {
+  padding: 10px 13px;
+
+  border: 1px solid var(--border);
+  border-radius: 9px;
+
+  background: var(--bg-card);
+  color: var(--text-primary);
+
+  outline: none;
+}
+
+.language-selector:focus {
+  border-color: var(--accent);
+}

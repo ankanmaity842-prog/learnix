@@ -1,0 +1,82 @@
+.learning-path {
+  padding: 22px;
+
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+
+  background: var(--bg-card);
+}
+
+.path-header span {
+  color: #9b86ff;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.path-header h3 {
+  margin-top: 5px;
+  font-size: 20px;
+}
+
+.path-list {
+  position: relative;
+  margin-top: 24px;
+}
+
+.path-list::before {
+  content: "";
+
+  position: absolute;
+  top: 18px;
+  bottom: 18px;
+  left: 17px;
+
+  width: 1px;
+  background: var(--border);
+}
+
+.path-item {
+  position: relative;
+
+  display: flex;
+  gap: 14px;
+
+  margin-bottom: 18px;
+}
+
+.path-number {
+  position: relative;
+  z-index: 1;
+
+  width: 35px;
+  height: 35px;
+  flex-shrink: 0;
+
+  display: grid;
+  place-items: center;
+
+  border: 1px solid var(--border);
+  border-radius: 50%;
+
+  background: var(--bg-card);
+  color: #a993ff;
+
+  font-weight: 700;
+}
+
+.path-content {
+  padding-top: 3px;
+}
+
+.path-content strong {
+  display: block;
+}
+
+.path-content span {
+  display: block;
+  margin-top: 4px;
+
+  color: var(--text-muted);
+  font-size: 12px;
+}

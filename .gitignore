@@ -1,0 +1,315 @@
+# ==============================
+# Learnix - Root Git Ignore
+# ==============================
+
+# ------------------------------
+# Environment variables & secrets
+# ------------------------------
+.env
+.env.*
+!.env.example
+
+# ------------------------------
+# Python
+# ------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+
+*.pyo
+*.pyd
+
+.Python
+python.exe
+
+# Virtual environments
+venv/
+env/
+.venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Python packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Testing / coverage
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+*.log
+
+# ------------------------------
+# FastAPI / Backend
+# ------------------------------
+backend/.pytest_cache/
+backend/__pycache__/
+backend/**/*.pyc
+
+# Uploaded/generated files
+backend/uploads/
+backend/temp/
+backend/tmp/
+backend/cache/
+backend/generated/
+backend/output/
+
+# ML generated files
+backend/ml_models/**/*.joblib
+backend/ml_models/**/*.pkl
+backend/ml_models/**/*.pickle
+
+# Keep model directory structure if needed
+!backend/ml_models/
+!backend/ml_models/**/
+
+# ------------------------------
+# Databases
+# ------------------------------
+*.db
+*.sqlite
+*.sqlite3
+
+backend/*.db
+backend/*.sqlite
+backend/*.sqlite3
+
+# SQLite journal / temporary files
+*.db-journal
+*.db-shm
+*.db-wal
+
+# ------------------------------
+# Alembic
+# ------------------------------
+# Do NOT ignore migration files.
+# Migration scripts should be committed.
+
+# Ignore Alembic cache
+alembic/__pycache__/
+alembic/versions/__pycache__/
+
+# ------------------------------
+# Node / React / Vite
+# ------------------------------
+node_modules/
+frontend/node_modules/
+
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+.npm/
+.pnpm-store/
+
+# Vite
+frontend/dist/
+frontend/.vite/
+frontend/node_modules/.vite/
+
+# ------------------------------
+# Frontend environment files
+# ------------------------------
+frontend/.env
+frontend/.env.local
+frontend/.env.development
+frontend/.env.production
+frontend/.env.test
+
+# Keep example environment file
+!frontend/.env.example
+
+# ------------------------------
+# Frontend build files
+# ------------------------------
+frontend/dist/
+frontend/build/
+
+# ------------------------------
+# React / Vite cache
+# ------------------------------
+.vite/
+.cache/
+
+# ------------------------------
+# Logs
+# ------------------------------
+*.log
+logs/
+log/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ------------------------------
+# OS generated files
+# ------------------------------
+.DS_Store
+.DS_Store?
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# ------------------------------
+# Windows
+# ------------------------------
+*.lnk
+
+# ------------------------------
+# macOS
+# ------------------------------
+.AppleDouble
+.LSOverride
+
+# ------------------------------
+# Linux
+# ------------------------------
+*~
+
+# ------------------------------
+# VS Code
+# ------------------------------
+.vscode/
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# ------------------------------
+# JetBrains / IntelliJ
+# ------------------------------
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# ------------------------------
+# Jupyter Notebook
+# ------------------------------
+.ipynb_checkpoints/
+
+# ------------------------------
+# Python tools
+# ------------------------------
+.mypy_cache/
+.pyre/
+.pytype/
+.ruff_cache/
+
+# ------------------------------
+# Type checking
+# ------------------------------
+.pyright/
+
+# ------------------------------
+# Temporary files
+# ------------------------------
+*.tmp
+*.temp
+*.swp
+*.swo
+*.bak
+*.orig
+
+# ------------------------------
+# Uploaded media / large files
+# ------------------------------
+*.mp4
+*.avi
+*.mov
+*.mkv
+*.webm
+
+*.wav
+*.mp3
+*.ogg
+*.m4a
+
+*.zip
+*.rar
+*.7z
+*.tar
+*.gz
+
+# ------------------------------
+# Images generated during processing
+# ------------------------------
+backend/frames/
+backend/frame_output/
+backend/processed_images/
+backend/processed_videos/
+
+# ------------------------------
+# Computer vision temporary files
+# ------------------------------
+backend/vision_output/
+backend/vision_cache/
+backend/temp_frames/
+
+# ------------------------------
+# Secrets / credentials
+# ------------------------------
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+
+credentials.json
+service-account.json
+client_secret.json
+google_credentials.json
+
+# ------------------------------
+# Google OAuth
+# ------------------------------
+client_secret*.json
+google_client_secret*.json
+
+# ------------------------------
+# API keys
+# ------------------------------
+*secret*
+*credentials*
+
+# ------------------------------
+# Local configuration
+# ------------------------------
+config.local.*
+settings.local.*
+
+# ------------------------------
+# Render / deployment local files
+# ------------------------------
+.render/
+
+# ------------------------------
+# Vercel
+# ------------------------------
+.vercel/
+
+# ------------------------------
+# Docker
+# ------------------------------
+docker-compose.override.yml
+
+# ------------------------------
+# Generated documentation
+# ------------------------------
+*.pdf
+*.docx
+*.xlsx
+
+# ------------------------------
+# Personal project files
+# ------------------------------
+notes/
+personal/
+screenshots/

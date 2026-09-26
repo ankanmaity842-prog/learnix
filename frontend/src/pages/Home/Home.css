@@ -1,0 +1,387 @@
+.home-page {
+  min-height: 100vh;
+}
+
+.home-hero {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 90px 32px 80px;
+  display: grid;
+  grid-template-columns: 1.05fr 0.95fr;
+  gap: 70px;
+  align-items: center;
+}
+
+.home-eyebrow,
+.section-heading > span,
+.home-cta > div > span {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: #6f8cff;
+}
+
+.home-hero h1 {
+  margin: 18px 0;
+  font-size: clamp(3rem, 6vw, 5.2rem);
+  line-height: 0.98;
+  letter-spacing: -0.055em;
+  font-weight: 800;
+}
+
+.home-hero h1 span {
+  color: #7f94ff;
+}
+
+.home-hero-content > p {
+  max-width: 650px;
+  margin: 0;
+  color: #a7aec0;
+  font-size: 1.08rem;
+  line-height: 1.8;
+}
+
+.home-actions {
+  display: flex;
+  gap: 14px;
+  margin-top: 34px;
+  flex-wrap: wrap;
+}
+
+.primary-button,
+.secondary-button {
+  min-height: 48px;
+  padding: 0 22px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.92rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: 0.2s ease;
+  cursor: pointer;
+}
+
+.primary-button {
+  border: 1px solid #7187ff;
+  background: #7187ff;
+  color: #fff;
+}
+
+.primary-button:hover {
+  background: #8093ff;
+  transform: translateY(-1px);
+}
+
+.secondary-button {
+  border: 1px solid #30384a;
+  background: transparent;
+  color: #e8ebf2;
+}
+
+.secondary-button:hover {
+  background: #171c27;
+  border-color: #46516a;
+}
+
+.home-trust {
+  display: flex;
+  gap: 22px;
+  flex-wrap: wrap;
+  margin-top: 30px;
+  color: #737c91;
+  font-size: 0.8rem;
+}
+
+.home-trust span::before {
+  content: "✓";
+  margin-right: 7px;
+  color: #7f94ff;
+}
+
+.home-visual {
+  display: flex;
+  justify-content: center;
+}
+
+.learning-dashboard-preview {
+  width: 100%;
+  max-width: 470px;
+  padding: 26px;
+  border: 1px solid #293143;
+  border-radius: 20px;
+  background: #121722;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.3);
+}
+
+.preview-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.preview-top span,
+.preview-current > span {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: #727c91;
+}
+
+.preview-top h3 {
+  margin: 8px 0 0;
+  font-size: 1.25rem;
+}
+
+.preview-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: #20283a;
+  color: #8c9eff;
+  font-weight: 700;
+}
+
+.preview-progress-section {
+  margin-top: 34px;
+}
+
+.preview-progress-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 9px;
+  color: #9aa3b6;
+  font-size: 0.8rem;
+}
+
+.preview-progress-header strong {
+  color: #e7eaf1;
+}
+
+.preview-progress,
+.dashboard-progress {
+  height: 7px;
+  overflow: hidden;
+  border-radius: 10px;
+  background: #252d3d;
+}
+
+.preview-progress span,
+.dashboard-progress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #7187ff;
+}
+
+.preview-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-top: 24px;
+}
+
+.preview-stat-grid div {
+  padding: 16px 12px;
+  border: 1px solid #252d3c;
+  border-radius: 10px;
+}
+
+.preview-stat-grid strong,
+.preview-stat-grid span {
+  display: block;
+}
+
+.preview-stat-grid strong {
+  font-size: 1.15rem;
+}
+
+.preview-stat-grid span {
+  margin-top: 5px;
+  color: #737d91;
+  font-size: 0.7rem;
+}
+
+.preview-current {
+  margin-top: 24px;
+  padding-top: 22px;
+  border-top: 1px solid #252d3c;
+}
+
+.preview-current h4 {
+  margin: 8px 0 15px;
+}
+
+.preview-lesson {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid #2b3447;
+  border-radius: 12px;
+  background: #171d29;
+}
+
+.lesson-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  background: #7187ff;
+  font-size: 0.75rem;
+}
+
+.preview-lesson strong,
+.preview-lesson span {
+  display: block;
+}
+
+.preview-lesson strong {
+  font-size: 0.8rem;
+}
+
+.preview-lesson span {
+  margin-top: 4px;
+  color: #737d91;
+  font-size: 0.7rem;
+}
+
+.lesson-arrow {
+  margin-left: auto;
+  color: #7187ff !important;
+  font-size: 1rem !important;
+}
+
+.home-section {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 90px 32px;
+}
+
+.section-heading {
+  max-width: 680px;
+  margin-bottom: 45px;
+}
+
+.section-heading h2 {
+  margin: 12px 0;
+  font-size: clamp(2rem, 4vw, 3rem);
+  letter-spacing: -0.04em;
+}
+
+.section-heading p {
+  margin: 0;
+  color: #8992a5;
+  line-height: 1.7;
+}
+
+.feature-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+}
+
+.feature-card {
+  min-height: 230px;
+  padding: 28px;
+  border: 1px solid #252d3c;
+  border-radius: 16px;
+  background: #111620;
+  transition: 0.2s ease;
+}
+
+.feature-card:hover {
+  border-color: #3b465d;
+  transform: translateY(-3px);
+}
+
+.feature-number {
+  color: #7187ff;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.feature-card h3 {
+  margin: 48px 0 12px;
+  font-size: 1.2rem;
+}
+
+.feature-card p {
+  margin: 0;
+  color: #858ea2;
+  line-height: 1.7;
+  font-size: 0.9rem;
+}
+
+.home-cta {
+  max-width: 1176px;
+  margin: 0 auto 70px;
+  padding: 42px;
+  border: 1px solid #2a3344;
+  border-radius: 18px;
+  background: #131925;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 30px;
+}
+
+.home-cta h2 {
+  margin: 12px 0 8px;
+  font-size: 1.8rem;
+}
+
+.home-cta p {
+  margin: 0;
+  color: #858ea2;
+}
+
+@media (max-width: 900px) {
+  .home-hero {
+    grid-template-columns: 1fr;
+    gap: 45px;
+  }
+
+  .feature-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .home-cta {
+    margin: 0 20px 50px;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+@media (max-width: 600px) {
+  .home-hero,
+  .home-section {
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+
+  .home-hero {
+    padding-top: 55px;
+  }
+
+  .home-hero h1 {
+    font-size: 3rem;
+  }
+
+  .home-actions {
+    flex-direction: column;
+  }
+
+  .primary-button,
+  .secondary-button {
+    width: 100%;
+  }
+
+  .learning-dashboard-preview {
+    padding: 20px;
+  }
+}

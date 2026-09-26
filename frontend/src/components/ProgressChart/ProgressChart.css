@@ -1,0 +1,52 @@
+.progress-chart {
+  padding: 22px;
+
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+
+  background: var(--bg-card);
+}
+
+.progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.progress-header span {
+  color: #9b86ff;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.progress-header h3 {
+  margin-top: 5px;
+}
+
+.progress-header strong {
+  font-size: 28px;
+}
+
+.progress-track {
+  height: 10px;
+  margin-top: 22px;
+
+  overflow: hidden;
+
+  border-radius: 999px;
+  background: #202938;
+}
+
+.progress-track span {
+  display: block;
+  height: 100%;
+
+  border-radius: inherit;
+
+  background: linear-gradient(
+    90deg,
+    var(--accent),
+    #3e8cff
+  );
+}

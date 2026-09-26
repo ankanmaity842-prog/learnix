@@ -1,0 +1,16 @@
+user_id,topic,prerequisite,knowledge_level,quiz_score,missing
+1,Neural Networks,Linear Algebra,0.25,0.30,1
+2,Neural Networks,Linear Algebra,0.35,0.42,1
+3,Neural Networks,Linear Algebra,0.72,0.84,0
+4,Machine Learning,Statistics,0.28,0.35,1
+5,Machine Learning,Statistics,0.75,0.88,0
+6,Machine Learning,Linear Algebra,0.40,0.48,1
+7,Machine Learning,Linear Algebra,0.82,0.91,0
+8,Deep Learning,Neural Networks,0.30,0.38,1
+9,Deep Learning,Neural Networks,0.76,0.86,0
+10,Gradient Descent,Calculus,0.25,0.32,1
+11,Gradient Descent,Calculus,0.78,0.90,0
+12,Data Structures,Programming Basics,0.20,0.28,1
+13,Data Structures,Programming Basics,0.81,0.93,0
+14,SQL Optimization,SQL Basics,0.32,0.40,1
+15,SQL Optimization,SQL Basics,0.79,0.89,0

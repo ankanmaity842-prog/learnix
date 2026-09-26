@@ -1,0 +1,25 @@
+.difficulty-badge {
+  display: inline-flex;
+  padding: 5px 9px;
+
+  border-radius: 999px;
+
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: capitalize;
+}
+
+.difficulty-beginner {
+  background: rgba(53, 211, 154, 0.12);
+  color: var(--success);
+}
+
+.difficulty-intermediate {
+  background: rgba(245, 184, 75, 0.12);
+  color: var(--warning);
+}
+
+.difficulty-advanced {
+  background: rgba(255, 102, 120, 0.12);
+  color: var(--danger);
+}

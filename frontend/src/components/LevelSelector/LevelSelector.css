@@ -1,0 +1,11 @@
+.level-selector {
+  padding: 10px 13px;
+
+  border: 1px solid var(--border);
+  border-radius: 9px;
+
+  background: var(--bg-card);
+  color: white;
+
+  outline: none;
+}

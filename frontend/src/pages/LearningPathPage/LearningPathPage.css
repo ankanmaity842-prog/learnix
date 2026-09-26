@@ -1,0 +1,151 @@
+.learning-path-page {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 65px 24px 80px;
+}
+
+.path-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 30px;
+  align-items: flex-end;
+  padding-bottom: 40px;
+  border-bottom: 1px solid #252d3b;
+}
+
+.path-header > div:first-child > span {
+  color: #7187ff;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.13em;
+}
+
+.path-header h1 {
+  margin: 12px 0;
+  font-size: 3rem;
+  letter-spacing: -0.05em;
+}
+
+.path-header p {
+  max-width: 620px;
+  margin: 0;
+  color: #858ea1;
+  line-height: 1.7;
+}
+
+.path-progress {
+  min-width: 130px;
+  text-align: right;
+}
+
+.path-progress strong,
+.path-progress span {
+  display: block;
+}
+
+.path-progress strong {
+  font-size: 2rem;
+  color: #7187ff;
+}
+
+.path-progress span {
+  margin-top: 4px;
+  color: #6f788b;
+  font-size: 0.7rem;
+}
+
+.path-list {
+  position: relative;
+  margin-top: 45px;
+}
+
+.path-list::before {
+  content: "";
+  position: absolute;
+  left: 26px;
+  top: 30px;
+  bottom: 30px;
+  width: 1px;
+  background: #293143;
+}
+
+.path-step {
+  position: relative;
+  display: grid;
+  grid-template-columns: 54px 1fr;
+  gap: 22px;
+  margin-bottom: 18px;
+}
+
+.step-number {
+  width: 54px;
+  height: 54px;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  border: 1px solid #30394c;
+  border-radius: 50%;
+  background: #0e131c;
+  color: #697387;
+  font-size: 0.72rem;
+}
+
+.path-step.completed .step-number {
+  background: #7187ff;
+  border-color: #7187ff;
+  color: #fff;
+}
+
+.path-step.current .step-number {
+  border-color: #7187ff;
+  color: #7187ff;
+}
+
+.step-content {
+  padding: 23px;
+  border: 1px solid #293143;
+  border-radius: 13px;
+  background: #111620;
+}
+
+.path-step.current .step-content {
+  border-color: #3a4660;
+}
+
+.step-content > span {
+  color: #697386;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+}
+
+.path-step.current .step-content > span {
+  color: #7187ff;
+}
+
+.step-content h2 {
+  margin: 8px 0;
+  font-size: 1.15rem;
+}
+
+.step-content p {
+  margin: 0 0 18px;
+  color: #7f899d;
+  line-height: 1.6;
+  font-size: 0.82rem;
+}
+
+@media (max-width: 650px) {
+  .path-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .path-progress {
+    text-align: left;
+  }
+
+  .path-header h1 {
+    font-size: 2.4rem;
+  }
+}

@@ -1,0 +1,16 @@
+video_id,topic,relevance_score,transcript_simplicity,visual_simplicity,explanation_structure,duration_minutes,engagement_score,difficulty
+v001,Python Basics,0.95,0.92,0.90,0.94,18,0.88,beginner
+v002,Python Basics,0.91,0.86,0.84,0.90,25,0.82,beginner
+v003,Python Basics,0.89,0.72,0.70,0.76,42,0.79,intermediate
+v004,Machine Learning,0.96,0.62,0.58,0.70,48,0.91,advanced
+v005,Machine Learning,0.93,0.76,0.73,0.82,35,0.87,intermediate
+v006,Linear Algebra,0.94,0.88,0.86,0.91,22,0.84,beginner
+v007,Linear Algebra,0.90,0.71,0.69,0.74,45,0.76,intermediate
+v008,Neural Networks,0.97,0.55,0.52,0.64,55,0.93,advanced
+v009,Neural Networks,0.92,0.68,0.65,0.75,40,0.86,intermediate
+v010,SQL Basics,0.95,0.91,0.89,0.93,20,0.89,beginner
+v011,SQL Basics,0.88,0.79,0.77,0.82,32,0.81,intermediate
+v012,Operating Systems,0.94,0.75,0.72,0.80,38,0.85,intermediate
+v013,Operating Systems,0.91,0.58,0.55,0.67,52,0.90,advanced
+v014,Data Structures,0.96,0.87,0.83,0.89,28,0.88,beginner
+v015,Data Structures,0.93,0.69,0.67,0.75,47,0.86,intermediate

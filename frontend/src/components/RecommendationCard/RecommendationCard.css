@@ -1,0 +1,53 @@
+.recommendation-card {
+  position: relative;
+
+  padding: 20px;
+
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+
+  background:
+    linear-gradient(
+      135deg,
+      rgba(124, 92, 255, 0.1),
+      transparent
+    ),
+    var(--bg-card);
+}
+
+.recommendation-label {
+  color: #a993ff;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.recommendation-card h3 {
+  margin-top: 8px;
+  font-size: 17px;
+}
+
+.recommendation-card p {
+  margin-top: 8px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.recommendation-score {
+  margin-top: 18px;
+
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.recommendation-score strong {
+  font-size: 25px;
+  color: var(--success);
+}
+
+.recommendation-score span {
+  color: var(--text-muted);
+  font-size: 12px;
+}
