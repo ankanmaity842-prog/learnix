@@ -36,7 +36,7 @@ def get_current_user(
         if user_id is None:
             raise credentials_exception
 
-    except JWTError:
+    except (JWTError, ValueError, TypeError):
         raise credentials_exception
 
     user = (

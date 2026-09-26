@@ -19,7 +19,7 @@ google-genai==1.12.1
 
 sentence-transformers==4.1.0
 numpy==2.2.5
-scikit-learn==1.6.1
+scikit-learn==1.8.0
 joblib==1.4.2
 
 langdetect==1.0.9
