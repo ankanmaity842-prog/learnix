@@ -11,20 +11,15 @@ import "./Search.css";
 function Search() {
   const [params] = useSearchParams();
 
-  const initialQuery =
-    params.get("q") || "";
+  const initialQuery = params.get("q") || "";
 
-  const [query, setQuery] =
-    useState(initialQuery);
+  const [query, setQuery] = useState(initialQuery);
 
-  const [language, setLanguage] =
-    useState("en");
+  const [language, setLanguage] = useState("en");
 
-  const [level, setLevel] =
-    useState("beginner");
+  const [level, setLevel] = useState("beginner");
 
-  const [videos, setVideos] =
-    useState([]);
+  const [videos, setVideos] = useState([]);
 
   const search = async (value) => {
     setQuery(value);
@@ -36,12 +31,13 @@ function Search() {
 
   return (
     <div className="search-page">
-      <Navbar />
 
       <main className="search-container">
         <div className="search-heading">
           <span>Explore</span>
+
           <h1>Find your next lesson</h1>
+
           <p>
             Search any topic and Learnix will
             evaluate available educational videos.
@@ -65,6 +61,7 @@ function Search() {
         <div className="results-heading">
           <div>
             <span>Results</span>
+
             <h2>
               {query || "Recommended videos"}
             </h2>
@@ -77,6 +74,7 @@ function Search() {
 
         <VideoGrid videos={videos} />
       </main>
+
     </div>
   );
 }
