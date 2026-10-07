@@ -21,6 +21,9 @@ def verify_password(
     plain_password: str,
     hashed_password: str,
 ) -> bool:
+    if not hashed_password:
+        return False
+
     return pwd_context.verify(
         plain_password,
         hashed_password,
@@ -32,10 +35,11 @@ def create_access_token(
 ) -> str:
     payload = data.copy()
 
-    expire = datetime.now(
-        timezone.utc
-    ) + timedelta(
-        minutes=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES
+    expire = (
+        datetime.now(timezone.utc)
+        + timedelta(
+            minutes=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES
+        )
     )
 
     payload.update(
@@ -55,10 +59,11 @@ def create_access_token(
 def create_password_reset_token(
     user_id: int,
 ) -> str:
-    expire = datetime.now(
-        timezone.utc
-    ) + timedelta(
-        minutes=settings.PASSWORD_RESET_TOKEN_EXPIRE_MINUTES
+    expire = (
+        datetime.now(timezone.utc)
+        + timedelta(
+            minutes=settings.PASSWORD_RESET_TOKEN_EXPIRE_MINUTES
+        )
     )
 
     payload = {
@@ -74,7 +79,9 @@ def create_password_reset_token(
     )
 
 
-def decode_token(token: str) -> dict[str, Any] | None:
+def decode_token(
+    token: str,
+) -> dict[str, Any] | None:
     try:
         return jwt.decode(
             token,
@@ -83,3 +90,17 @@ def decode_token(token: str) -> dict[str, Any] | None:
         )
     except JWTError:
         return None
+
+
+def decode_access_token(
+    token: str,
+) -> dict[str, Any] | None:
+    payload = decode_token(token)
+
+    if payload is None:
+        return None
+
+    if payload.get("type") != "access":
+        return None
+
+    return payload

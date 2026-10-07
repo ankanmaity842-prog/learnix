@@ -1,18 +1,30 @@
+
 import api from "./api";
 
 const authService = {
   async register(data) {
-    const response = await api.post("/auth/register", data);
+    const response = await api.post(
+      "/auth/register",
+      data
+    );
+
     return response.data;
   },
 
   async login(data) {
-    const response = await api.post("/auth/login", data);
+    const response = await api.post(
+      "/auth/login",
+      data
+    );
+
     return response.data;
   },
 
   async getCurrentUser() {
-    const response = await api.get("/auth/me");
+    const response = await api.get(
+      "/auth/me"
+    );
+
     return response.data;
   },
 
@@ -20,8 +32,10 @@ const authService = {
     try {
       await api.post("/auth/logout");
     } catch (error) {
-      // Local logout should still happen if backend logout fails.
-      console.error("Logout request failed:", error);
+      console.error(
+        "Logout request failed:",
+        error
+      );
     }
   },
 
@@ -34,12 +48,17 @@ const authService = {
     return response.data;
   },
 
-  async resetPassword(token, password) {
+  async resetPassword(
+    token,
+    password,
+    confirmPassword
+  ) {
     const response = await api.post(
       "/auth/reset-password",
       {
         token,
         password,
+        confirm_password: confirmPassword,
       }
     );
 
@@ -52,3 +71,5 @@ const authService = {
 };
 
 export default authService;
+
+

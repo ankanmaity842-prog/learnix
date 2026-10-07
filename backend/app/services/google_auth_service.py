@@ -46,25 +46,29 @@ class GoogleAuthService:
     ) -> str:
 
         async with httpx.AsyncClient(
-            timeout=15
+            timeout=20
         ) as client:
 
             token_response = await client.post(
                 GOOGLE_TOKEN_URL,
                 data={
                     "code": code,
-                    "client_id":
-                        settings.GOOGLE_CLIENT_ID,
-                    "client_secret":
-                        settings.GOOGLE_CLIENT_SECRET,
-                    "redirect_uri":
-                        settings.GOOGLE_REDIRECT_URI,
-                    "grant_type":
-                        "authorization_code",
+                    "client_id": settings.GOOGLE_CLIENT_ID,
+                    "client_secret": settings.GOOGLE_CLIENT_SECRET,
+                    "redirect_uri": settings.GOOGLE_REDIRECT_URI,
+                    "grant_type": "authorization_code",
                 },
             )
 
-            token_response.raise_for_status()
+            if token_response.status_code != 200:
+                print(
+                    "Google token error:",
+                    token_response.text,
+                )
+
+                raise ValueError(
+                    "Google token exchange failed"
+                )
 
             token_data = token_response.json()
 
@@ -85,7 +89,15 @@ class GoogleAuthService:
                 },
             )
 
-            user_response.raise_for_status()
+            if user_response.status_code != 200:
+                print(
+                    "Google userinfo error:",
+                    user_response.text,
+                )
+
+                raise ValueError(
+                    "Unable to retrieve Google profile"
+                )
 
             google_user = user_response.json()
 
@@ -96,6 +108,8 @@ class GoogleAuthService:
             raise ValueError(
                 "Google account information unavailable"
             )
+
+        email = email.lower().strip()
 
         user = (
             db.query(User)
@@ -111,14 +125,15 @@ class GoogleAuthService:
             )
 
         if user:
-            if not user.google_id:
-                user.google_id = google_id
-
+            user.google_id = google_id
             user.auth_provider = "google"
 
         else:
             username = self.generate_username(
-                google_user.get("name", "learnixuser"),
+                google_user.get(
+                    "name",
+                    "learnixuser",
+                ),
                 email,
                 db,
             )
@@ -133,6 +148,8 @@ class GoogleAuthService:
                 google_id=google_id,
                 auth_provider="google",
                 password_hash=None,
+                preferred_language="en",
+                is_active=True,
             )
 
             db.add(user)
@@ -168,7 +185,10 @@ class GoogleAuthService:
                 .replace("_", "")
             )
 
-        base = base[:40]
+        if len(base) < 5:
+            base = "learnixuser"
+
+        base = base[:25]
 
         username = base
         counter = 1
@@ -178,7 +198,13 @@ class GoogleAuthService:
             .filter(User.username == username)
             .first()
         ):
-            username = f"{base}{counter}"
+            suffix = str(counter)
+
+            username = (
+                f"{base[:30-len(suffix)]}"
+                f"{suffix}"
+            )
+
             counter += 1
 
         return username

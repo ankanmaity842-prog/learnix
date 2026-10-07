@@ -21,6 +21,7 @@ from app.api.language import router as languages_router
 
 setup_logging()
 
+
 app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
@@ -28,12 +29,16 @@ app = FastAPI(
 )
 
 
-app.add_middleware(RequestLoggingMiddleware)
+app.add_middleware(
+    RequestLoggingMiddleware
+)
+
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        settings.FRONTEND_URL,
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -105,14 +110,13 @@ app.include_router(
 @app.get("/")
 async def root():
     return {
-        "name": settings.APP_NAME,
+        "message": settings.APP_NAME,
         "version": settings.APP_VERSION,
-        "status": "running",
     }
 
 
 @app.get("/health")
 async def health():
     return {
-        "status": "healthy",
+        "status": "healthy"
     }

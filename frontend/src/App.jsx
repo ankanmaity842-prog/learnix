@@ -8,6 +8,8 @@ import Login from "./pages/Login/Login";
 import Register from "./pages/Register/Register";
 import Search from "./pages/Search/Search";
 
+import OAuthCallback from "./pages/OAuthCallback/OAuthCallback";
+
 import Dashboard from "./pages/Dashboard/Dashboard";
 import VideoLearning from "./pages/VideoLearning/VideoLearning";
 import Notes from "./pages/Notes/Notes";
@@ -27,8 +29,8 @@ function App() {
       <Navbar />
 
       <Routes>
-        {/* Public routes */}
 
+        {/* Public */}
         <Route
           path="/"
           element={<Home />}
@@ -50,6 +52,11 @@ function App() {
         />
 
         <Route
+          path="/oauth/callback"
+          element={<OAuthCallback />}
+        />
+
+        <Route
           path="/forgot-password"
           element={<ForgotPassword />}
         />
@@ -59,9 +66,9 @@ function App() {
           element={<ResetPassword />}
         />
 
-        {/* Protected routes */}
-
+        {/* Protected */}
         <Route element={<ProtectedRoute />}>
+
           <Route
             path="/dashboard"
             element={<Dashboard />}
@@ -101,7 +108,9 @@ function App() {
             path="/settings"
             element={<Settings />}
           />
+
         </Route>
+
       </Routes>
     </>
   );

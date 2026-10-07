@@ -1,16 +1,27 @@
 import { useState } from "react";
+import {
+  Link,
+  useNavigate,
+} from "react-router-dom";
+
+import { useAuth } from "../../hooks/useAuth";
+
 import "./Register.css";
 
 function EyeIcon({ visible }) {
   if (visible) {
     return (
-      <svg viewBox="0 0 24 24" aria-hidden="true">
+      <svg
+        viewBox="0 0 24 24"
+        aria-hidden="true"
+      >
         <path
           d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"
           fill="none"
           stroke="currentColor"
           strokeWidth="1.8"
         />
+
         <circle
           cx="12"
           cy="12"
@@ -24,7 +35,10 @@ function EyeIcon({ visible }) {
   }
 
   return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
+    <svg
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+    >
       <path
         d="M3 3l18 18"
         fill="none"
@@ -46,9 +60,17 @@ function EyeIcon({ visible }) {
 }
 
 export default function Register() {
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] =
+  const navigate = useNavigate();
+
+  const { register } = useAuth();
+
+  const [showPassword, setShowPassword] =
     useState(false);
+
+  const [
+    showConfirmPassword,
+    setShowConfirmPassword,
+  ] = useState(false);
 
   const [form, setForm] = useState({
     username: "",
@@ -58,21 +80,113 @@ export default function Register() {
     confirmPassword: "",
   });
 
+  const [error, setError] =
+    useState("");
+
+  const [loading, setLoading] =
+    useState(false);
+
   const handleChange = (event) => {
     setForm({
       ...form,
-      [event.target.name]: event.target.value,
+      [event.target.name]:
+        event.target.value,
     });
+
+    setError("");
   };
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
 
-    if (form.password !== form.confirmPassword) {
+    setError("");
+
+    const username =
+      form.username.trim();
+
+    const name =
+      form.name.trim();
+
+    const email =
+      form.email
+        .trim()
+        .toLowerCase();
+
+    if (username.length < 5) {
+      setError(
+        "Username must contain at least 5 characters."
+      );
       return;
     }
 
-    // Registration API call
+    if (form.password.length < 6) {
+      setError(
+        "Password must contain at least 6 characters."
+      );
+      return;
+    }
+
+    if (
+      form.password !==
+      form.confirmPassword
+    ) {
+      setError(
+        "Passwords do not match."
+      );
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      await register({
+        username,
+        name,
+        email,
+        password: form.password,
+      });
+
+      navigate("/dashboard", {
+        replace: true,
+      });
+    } catch (error) {
+      console.error(
+        "Registration failed:",
+        error
+      );
+
+      const detail =
+        error?.response?.data?.detail;
+
+      if (typeof detail === "string") {
+        setError(detail);
+      } else if (
+        Array.isArray(detail)
+      ) {
+        const messages =
+          detail
+            .map(
+              (item) => item?.msg
+            )
+            .filter(Boolean);
+
+        setError(
+          messages.length
+            ? messages.join(", ")
+            : "Invalid registration details."
+        );
+      } else if (error?.request) {
+        setError(
+          "Unable to connect to the server. Please try again."
+        );
+      } else {
+        setError(
+          "Unable to create your account. Please try again."
+        );
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -80,7 +194,9 @@ export default function Register() {
       <section className="register-container">
 
         <div className="register-brand">
-          <div className="brand-logo">L</div>
+          <div className="brand-logo">
+            L
+          </div>
 
           <span className="brand-name">
             Learnix
@@ -90,11 +206,13 @@ export default function Register() {
         <div className="register-card">
 
           <div className="register-header">
-            <h1>Create your account</h1>
+            <h1>
+              Create your account
+            </h1>
 
             <p>
-              Start your personalized learning
-              journey with Learnix.
+              Start your personalized
+              learning journey with Learnix.
             </p>
           </div>
 
@@ -102,6 +220,11 @@ export default function Register() {
             className="register-form"
             onSubmit={handleSubmit}
           >
+            {error && (
+              <div className="auth-error">
+                {error}
+              </div>
+            )}
 
             <div className="form-group">
               <label htmlFor="username">
@@ -178,6 +301,7 @@ export default function Register() {
                   onChange={handleChange}
                   placeholder="Create a password"
                   autoComplete="new-password"
+                  minLength={6}
                   required
                 />
 
@@ -186,7 +310,8 @@ export default function Register() {
                   className="password-toggle"
                   onClick={() =>
                     setShowPassword(
-                      (value) => !value
+                      (value) =>
+                        !value
                     )
                   }
                   aria-label={
@@ -216,10 +341,13 @@ export default function Register() {
                       ? "text"
                       : "password"
                   }
-                  value={form.confirmPassword}
+                  value={
+                    form.confirmPassword
+                  }
                   onChange={handleChange}
                   placeholder="Confirm your password"
                   autoComplete="new-password"
+                  minLength={6}
                   required
                 />
 
@@ -228,7 +356,8 @@ export default function Register() {
                   className="password-toggle"
                   onClick={() =>
                     setShowConfirmPassword(
-                      (value) => !value
+                      (value) =>
+                        !value
                     )
                   }
                   aria-label={
@@ -238,7 +367,9 @@ export default function Register() {
                   }
                 >
                   <EyeIcon
-                    visible={showConfirmPassword}
+                    visible={
+                      showConfirmPassword
+                    }
                   />
                 </button>
               </div>
@@ -247,10 +378,12 @@ export default function Register() {
             <button
               type="submit"
               className="register-button"
+              disabled={loading}
             >
-              Create account
+              {loading
+                ? "Creating account..."
+                : "Create account"}
             </button>
-
           </form>
 
           <div className="register-footer">
@@ -258,14 +391,14 @@ export default function Register() {
               Already have an account?
             </span>
 
-            <a href="/login">
+            <Link to="/login">
               Sign in
-            </a>
+            </Link>
           </div>
 
         </div>
-
       </section>
     </main>
   );
 }
+

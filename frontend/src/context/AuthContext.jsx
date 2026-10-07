@@ -1,9 +1,11 @@
+
 import {
   createContext,
   useCallback,
   useEffect,
   useState,
 } from "react";
+
 import authService from "../services/authService";
 
 export const AuthContext = createContext(null);
@@ -18,15 +20,26 @@ export function AuthProvider({ children }) {
     if (!token) {
       setUser(null);
       setLoading(false);
-      return;
+      return null;
     }
 
     try {
-      const currentUser = await authService.getCurrentUser();
+      const currentUser =
+        await authService.getCurrentUser();
+
       setUser(currentUser);
+
+      return currentUser;
     } catch (error) {
-      console.error("Failed to load user:", error);
+      console.error(
+        "Failed to load user:",
+        error
+      );
+
+      localStorage.removeItem("learnix_token");
       setUser(null);
+
+      return null;
     } finally {
       setLoading(false);
     }
@@ -37,14 +50,19 @@ export function AuthProvider({ children }) {
   }, [loadUser]);
 
   const login = async (credentials) => {
-    const data = await authService.login(credentials);
+    const data =
+      await authService.login(credentials);
 
-    if (data.access_token) {
-      localStorage.setItem(
-        "learnix_token",
-        data.access_token
+    if (!data?.access_token) {
+      throw new Error(
+        "Login succeeded but no access token was returned."
       );
     }
+
+    localStorage.setItem(
+      "learnix_token",
+      data.access_token
+    );
 
     await loadUser();
 
@@ -52,19 +70,33 @@ export function AuthProvider({ children }) {
   };
 
   const register = async (registrationData) => {
-    const data = await authService.register(
-      registrationData
-    );
+    const data =
+      await authService.register(
+        registrationData
+      );
+
+    if (data?.access_token) {
+      localStorage.setItem(
+        "learnix_token",
+        data.access_token
+      );
+
+      await loadUser();
+    }
 
     return data;
   };
 
   const logout = async () => {
-    await authService.logout();
+    try {
+      await authService.logout();
+    } finally {
+      localStorage.removeItem(
+        "learnix_token"
+      );
 
-    localStorage.removeItem("learnix_token");
-
-    setUser(null);
+      setUser(null);
+    }
   };
 
   const value = {
@@ -83,3 +115,4 @@ export function AuthProvider({ children }) {
     </AuthContext.Provider>
   );
 }
+

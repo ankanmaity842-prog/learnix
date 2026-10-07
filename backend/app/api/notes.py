@@ -1,7 +1,14 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
-router = APIRouter(prefix="/notes", tags=["AI Notes"])
+from app.dependencies import get_current_user
+from app.models.user import User
+
+
+router = APIRouter(
+    prefix="/notes",
+    tags=["AI Notes"],
+)
 
 
 class NotesRequest(BaseModel):
@@ -11,12 +18,7 @@ class NotesRequest(BaseModel):
     detail_level: str = "medium"
 
 
-@router.post("/generate")
-async def generate_notes(data: NotesRequest):
-    """
-    Generate AI-powered study notes.
-    """
-
+def build_notes(data: NotesRequest):
     return {
         "topic": data.topic,
         "language": data.language,
@@ -30,12 +32,28 @@ async def generate_notes(data: NotesRequest):
     }
 
 
-@router.get("/{topic}")
-async def get_notes(topic: str, language: str = "en"):
-    """
-    Retrieve saved notes for a topic.
-    """
+@router.post("/")
+async def generate_notes(
+    data: NotesRequest,
+    current_user: User = Depends(get_current_user),
+):
+    return build_notes(data)
 
+
+@router.post("/generate")
+async def generate_notes_explicit(
+    data: NotesRequest,
+    current_user: User = Depends(get_current_user),
+):
+    return build_notes(data)
+
+
+@router.get("/{topic}")
+async def get_notes(
+    topic: str,
+    language: str = "en",
+    current_user: User = Depends(get_current_user),
+):
     return {
         "topic": topic,
         "language": language,

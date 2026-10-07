@@ -40,7 +40,7 @@ async def google_callback(
         )
 
         redirect_url = (
-            f"{settings.FRONTEND_URL}"
+            f"{settings.FRONTEND_URL.rstrip('/')}"
             f"/oauth/callback"
             f"?token={token}"
         )
@@ -49,7 +49,12 @@ async def google_callback(
             url=redirect_url
         )
 
-    except Exception:
+    except Exception as exc:
+        print(
+            "Google authentication error:",
+            repr(exc),
+        )
+
         raise HTTPException(
             status_code=400,
             detail="Google authentication failed",

@@ -1,7 +1,6 @@
 import { useSearchParams } from "react-router-dom";
 import { useState } from "react";
 
-import Navbar from "../../components/Navbar/Navbar";
 import SearchBar from "../../components/SearchBar/SearchBar";
 import LanguageSelector from "../../components/LanguageSelector/LanguageSelector";
 import LevelSelector from "../../components/LevelSelector/LevelSelector";

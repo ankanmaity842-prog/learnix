@@ -1,13 +1,16 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from app.ai.knowledge_graph import knowledge_graph
+from app.dependencies import get_current_user
+from app.models.user import User
 from app.services.knowledge_gap_service import (
     knowledge_gap_service,
 )
 from app.services.learning_path_service import (
     learning_path_service,
 )
+
 
 router = APIRouter(
     prefix="/knowledge",
@@ -29,20 +32,21 @@ learner_knowledge: dict[str, float] = {}
 
 
 @router.get("/map")
-async def get_knowledge_map():
-
+async def get_knowledge_map(
+    current_user: User = Depends(get_current_user),
+):
     return knowledge_graph.build_map(
         learner_knowledge
     )
 
 
 @router.get("/gaps")
-async def get_knowledge_gaps():
-
+async def get_knowledge_gaps(
+    current_user: User = Depends(get_current_user),
+):
     gaps = []
 
     for topic in learner_knowledge:
-
         result = knowledge_gap_service.detect(
             target_topic=topic,
             learner_knowledge=learner_knowledge,
@@ -69,8 +73,8 @@ async def get_knowledge_gaps():
 @router.post("/update")
 async def update_knowledge(
     data: KnowledgeUpdate,
+    current_user: User = Depends(get_current_user),
 ):
-
     topic = data.topic.strip()
 
     if not topic:
@@ -92,8 +96,8 @@ async def update_knowledge(
 @router.get("/prerequisites/{topic}")
 async def get_prerequisites(
     topic: str,
+    current_user: User = Depends(get_current_user),
 ):
-
     topic = topic.strip()
 
     if not topic:
@@ -119,9 +123,15 @@ async def get_prerequisites(
 @router.get("/readiness/{topic}")
 async def check_topic_readiness(
     topic: str,
+    current_user: User = Depends(get_current_user),
 ):
-
     topic = topic.strip()
+
+    if not topic:
+        raise HTTPException(
+            status_code=400,
+            detail="Topic cannot be empty",
+        )
 
     result = knowledge_gap_service.detect(
         target_topic=topic,
@@ -130,9 +140,7 @@ async def check_topic_readiness(
 
     path = learning_path_service.build_path(
         target_topic=topic,
-        missing_topics=result[
-            "missing_topics"
-        ],
+        missing_topics=result["missing_topics"],
         learner_level="beginner",
     )
 

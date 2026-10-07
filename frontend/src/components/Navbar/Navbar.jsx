@@ -1,14 +1,22 @@
-
 import { useState } from "react";
-import { Link, NavLink } from "react-router-dom";
+
+import {
+  Link,
+  NavLink,
+  useNavigate,
+} from "react-router-dom";
 
 import { useAuth } from "../../hooks/useAuth";
+
 import ProfileMenu from "../ProfileMenu/ProfileMenu";
 
 import "./Navbar.css";
 
 function Navbar() {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] =
+    useState(false);
+
+  const navigate = useNavigate();
 
   const {
     user,
@@ -23,23 +31,21 @@ function Navbar() {
   const handleLogout = async () => {
     closeMenu();
 
-    try {
-      await logout();
-    } catch (error) {
-      console.error("Logout failed:", error);
-    }
+    await logout();
+
+    navigate("/", {
+      replace: true,
+    });
   };
 
   return (
     <header className="navbar">
       <div className="navbar-inner">
 
-        {/* Brand */}
         <Link
           to="/"
           className="brand"
           onClick={closeMenu}
-          aria-label="Learnix home"
         >
           <span className="brand-mark">
             L
@@ -50,12 +56,13 @@ function Navbar() {
           </span>
         </Link>
 
-        {/* Mobile menu button */}
         <button
           type="button"
           className="menu-button"
           onClick={() =>
-            setOpen((value) => !value)
+            setOpen(
+              (value) => !value
+            )
           }
           aria-label={
             open
@@ -63,16 +70,13 @@ function Navbar() {
               : "Open navigation"
           }
           aria-expanded={open}
-          aria-controls="learnix-navigation"
         >
           <span />
           <span />
           <span />
         </button>
 
-        {/* Navigation */}
         <nav
-          id="learnix-navigation"
           className={`nav-links ${
             open ? "open" : ""
           }`}
@@ -92,7 +96,7 @@ function Navbar() {
             Explore
           </NavLink>
 
-          {user && (
+          {!loading && user && (
             <>
               <NavLink
                 to="/dashboard"
@@ -110,7 +114,6 @@ function Navbar() {
             </>
           )}
 
-          {/* Authentication */}
           <div className="nav-auth">
 
             {!loading && user ? (
@@ -130,13 +133,23 @@ function Navbar() {
               </>
             ) : (
               !loading && (
-                <Link
-                  to="/login"
-                  className="nav-login"
-                  onClick={closeMenu}
-                >
-                  Login
-                </Link>
+                <>
+                  <Link
+                    to="/login"
+                    className="nav-login"
+                    onClick={closeMenu}
+                  >
+                    Login
+                  </Link>
+
+                  <Link
+                    to="/register"
+                    className="nav-register"
+                    onClick={closeMenu}
+                  >
+                    Register
+                  </Link>
+                </>
               )
             )}
 

@@ -4,7 +4,7 @@ from pydantic import BaseModel, EmailStr, Field
 class RegisterRequest(BaseModel):
     username: str = Field(
         min_length=5,
-        max_length=50,
+        max_length=30,
         pattern=r"^[a-zA-Z0-9_]+$",
     )
 
@@ -22,7 +22,11 @@ class RegisterRequest(BaseModel):
 
 
 class LoginRequest(BaseModel):
-    email: EmailStr
+    identifier: str = Field(
+        min_length=1,
+        max_length=255,
+    )
+
     password: str = Field(
         min_length=6,
         max_length=128,
@@ -35,7 +39,13 @@ class ForgotPasswordRequest(BaseModel):
 
 class ResetPasswordRequest(BaseModel):
     token: str
-    new_password: str = Field(
+
+    password: str = Field(
+        min_length=6,
+        max_length=128,
+    )
+
+    confirm_password: str = Field(
         min_length=6,
         max_length=128,
     )
@@ -43,6 +53,7 @@ class ResetPasswordRequest(BaseModel):
 
 class ChangePasswordRequest(BaseModel):
     current_password: str
+
     new_password: str = Field(
         min_length=6,
         max_length=128,

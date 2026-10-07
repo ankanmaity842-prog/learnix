@@ -1,4 +1,8 @@
 import os
+from types import SimpleNamespace
+
+import pytest
+from fastapi.testclient import TestClient
 
 os.environ.setdefault(
     "DATABASE_URL",
@@ -25,13 +29,35 @@ os.environ.setdefault(
     "http://localhost:5173",
 )
 
-import pytest
-from fastapi.testclient import TestClient
 
+from app.dependencies import get_current_user
 from app.main import app
 
 
 @pytest.fixture
 def client():
+    app.dependency_overrides.clear()
+
     with TestClient(app) as test_client:
         yield test_client
+
+    app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def auth_client():
+    async def override_get_current_user():
+        return SimpleNamespace(
+            id=1,
+            username="testuser",
+            email="test@example.com",
+        )
+
+    app.dependency_overrides[
+        get_current_user
+    ] = override_get_current_user
+
+    with TestClient(app) as test_client:
+        yield test_client
+
+    app.dependency_overrides.clear()
