@@ -1,6 +1,12 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, String
+from sqlalchemy import (
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database.connection import Base
@@ -51,6 +57,30 @@ class Recommendation(Base):
     )
 
     visual_score: Mapped[float] = mapped_column(
+        Float,
+        default=0.0,
+        nullable=False,
+    )
+
+    engagement_score: Mapped[float] = mapped_column(
+        Float,
+        default=0.0,
+        nullable=False,
+    )
+
+    language_priority_score: Mapped[float] = mapped_column(
+        Float,
+        default=0.0,
+        nullable=False,
+    )
+
+    regional_priority_score: Mapped[float] = mapped_column(
+        Float,
+        default=0.0,
+        nullable=False,
+    )
+
+    thumbnail_language_score: Mapped[float] = mapped_column(
         Float,
         default=0.0,
         nullable=False,

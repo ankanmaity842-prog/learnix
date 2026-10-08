@@ -2,10 +2,23 @@ from pydantic import BaseModel, Field
 
 
 class RecommendationResponse(BaseModel):
-
-    video_id: int
+    video_id: int | str
     title: str
     url: str | None = None
+
+    description: str | None = None
+    channel: str | None = None
+    thumbnail: str | None = None
+
+    language: str = "en"
+
+    views: int = 0
+    likes: int = 0
+
+    channel_country: str | None = None
+    thumbnail_has_bengali: bool = False
+
+    difficulty: str | None = None
 
     topic_relevance: float = 0.0
     transcript_simplicity: float = 0.0
@@ -20,6 +33,10 @@ class RecommendationResponse(BaseModel):
     duration_score: float = 0.0
     engagement_score: float = 0.0
 
+    language_priority_score: float = 0.0
+    regional_priority_score: float = 0.0
+    thumbnail_language_score: float = 0.0
+
     final_score: float = Field(
         default=0.0,
         alias="recommendation_score",
@@ -33,7 +50,6 @@ class RecommendationResponse(BaseModel):
 
 
 class RecommendationRequest(BaseModel):
-
     topic: str = Field(
         ...,
         min_length=2,
@@ -44,7 +60,7 @@ class RecommendationRequest(BaseModel):
     level: str = "beginner"
 
     limit: int = Field(
-        default=10,
+        default=20,
         ge=1,
-        le=50,
+        le=20,
     )

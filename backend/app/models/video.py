@@ -1,6 +1,13 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, Float, Integer, String, Text
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    Float,
+    Integer,
+    String,
+    Text,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database.connection import Base
@@ -42,14 +49,49 @@ class Video(Base):
         nullable=False,
     )
 
+    thumbnail: Mapped[str | None] = mapped_column(
+        String(1000),
+        nullable=True,
+    )
+
+    language: Mapped[str] = mapped_column(
+        String(10),
+        default="en",
+        nullable=False,
+        index=True,
+    )
+
+    channel_country: Mapped[str | None] = mapped_column(
+        String(10),
+        nullable=True,
+    )
+
     duration_seconds: Mapped[int | None] = mapped_column(
         Integer,
         nullable=True,
     )
 
+    views: Mapped[int] = mapped_column(
+        Integer,
+        default=0,
+        nullable=False,
+    )
+
+    likes: Mapped[int] = mapped_column(
+        Integer,
+        default=0,
+        nullable=False,
+    )
+
     transcript: Mapped[str | None] = mapped_column(
         Text,
         nullable=True,
+    )
+
+    thumbnail_has_bengali: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False,
     )
 
     difficulty_score: Mapped[float | None] = mapped_column(
@@ -60,6 +102,7 @@ class Video(Base):
     difficulty_level: Mapped[str | None] = mapped_column(
         String(30),
         nullable=True,
+        index=True,
     )
 
     visual_complexity: Mapped[float | None] = mapped_column(

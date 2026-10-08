@@ -11,18 +11,31 @@ class VideoResponse(BaseModel):
     channel_name: str | None = None
     url: str
     duration_seconds: int | None = None
+
+    views: int = 0
+    likes: int = 0
+
+    language: str = "en"
+    channel_country: str | None = None
+
+    thumbnail: str | None = None
+    thumbnail_has_bengali: bool = False
+
     difficulty_score: float | None = None
     difficulty_level: str | None = None
+
     visual_complexity: float | None = None
 
 
 class VideoSearchRequest(BaseModel):
     query: str
     language: str = "en"
-    max_results: int = 10
+    level: str = "beginner"
+    max_results: int = 20
 
 
 class VideoSearchResponse(BaseModel):
     query: str
     language: str
+    level: str
     videos: list[VideoResponse]
