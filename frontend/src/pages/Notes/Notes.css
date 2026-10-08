@@ -8,35 +8,44 @@
   display: flex;
   justify-content: space-between;
   align-items: flex-end;
+
   gap: 25px;
+
   padding-bottom: 40px;
-  border-bottom: 1px solid #252d3b;
+
+  border-bottom: 1px solid var(--border);
 }
 
 .notes-header > div > span,
 .notes-navigation > span,
 .notes-content section > span {
-  color: #7187ff;
+  color: var(--primary);
+
   font-size: 0.68rem;
   font-weight: 700;
+
   letter-spacing: 0.12em;
 }
 
 .notes-header h1 {
   margin: 11px 0;
+
   font-size: 2.7rem;
   letter-spacing: -0.045em;
 }
 
 .notes-header p {
   margin: 0;
-  color: #858ea1;
+  color: var(--text-secondary);
 }
 
 .notes-layout {
   display: grid;
+
   grid-template-columns: 190px 1fr;
+
   gap: 60px;
+
   margin-top: 45px;
 }
 
@@ -47,13 +56,14 @@
 }
 
 .notes-navigation a {
-  color: #747e91;
-  text-decoration: none;
+  color: var(--text-muted);
   font-size: 0.8rem;
+
+  transition: color 0.2s ease;
 }
 
 .notes-navigation a:hover {
-  color: #7187ff;
+  color: var(--primary);
 }
 
 .notes-content section {
@@ -67,7 +77,8 @@
 
 .notes-content p,
 .notes-content li {
-  color: #8a93a5;
+  color: var(--text-secondary);
+
   line-height: 1.8;
   font-size: 0.9rem;
 }

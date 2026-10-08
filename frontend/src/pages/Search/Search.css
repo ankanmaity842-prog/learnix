@@ -1,5 +1,8 @@
 .search-page {
+  width: 100%;
   min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--bg-primary);
 }
 
 .search-container {
@@ -14,20 +17,30 @@
 
 .search-heading > span,
 .results-heading span {
-  color: #9b86ff;
+  color: var(--cyan);
   font-size: 11px;
   font-weight: 700;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
 }
 
 .search-heading h1 {
   margin-top: 7px;
+  color: var(--text-primary);
   font-size: clamp(30px, 5vw, 48px);
+  letter-spacing: -0.03em;
+  background: var(--gradient-text);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
 .search-heading p {
   margin-top: 10px;
+  max-width: 650px;
   color: var(--text-secondary);
+  font-size: 16px;
+  line-height: 1.7;
 }
 
 .search-filters {
@@ -38,7 +51,6 @@
 
 .results-heading {
   margin: 55px 0 20px;
-
   display: flex;
   align-items: end;
   justify-content: space-between;
@@ -46,6 +58,7 @@
 
 .results-heading h2 {
   margin-top: 6px;
+  color: var(--text-primary);
 }
 
 .results-heading small {

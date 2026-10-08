@@ -8,12 +8,12 @@
   display: flex;
   gap: 10px;
   margin-bottom: 25px;
-  color: #687286;
+  color: var(--text-muted);
   font-size: 0.75rem;
 }
 
 .learning-breadcrumb a {
-  color: #7187ff;
+  color: var(--cyan);
   text-decoration: none;
 }
 
@@ -26,9 +26,10 @@
 .video-player {
   aspect-ratio: 16 / 9;
   overflow: hidden;
-  border: 1px solid #293143;
-  border-radius: 15px;
-  background: #080b10;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-secondary);
+  box-shadow: var(--shadow-md);
 }
 
 .video-placeholder {
@@ -36,6 +37,12 @@
   height: 100%;
   display: grid;
   place-items: center;
+  background:
+    radial-gradient(
+      circle at center,
+      rgba(139, 92, 246, 0.1),
+      transparent 60%
+    );
 }
 
 .play-button {
@@ -43,10 +50,23 @@
   height: 62px;
   border: 0;
   border-radius: 50%;
-  background: #7187ff;
+  background: var(--gradient-primary);
   color: #fff;
   cursor: pointer;
   font-size: 1.1rem;
+  box-shadow:
+    var(--shadow-md),
+    var(--glow-primary);
+  transition:
+    transform var(--transition-fast),
+    box-shadow var(--transition-fast);
+}
+
+.play-button:hover {
+  transform: scale(1.08);
+  box-shadow:
+    var(--shadow-lg),
+    var(--glow-primary);
 }
 
 .video-details {
@@ -55,7 +75,7 @@
 
 .video-details > span,
 .learning-sidebar > span {
-  color: #7187ff;
+  color: var(--cyan);
   font-size: 0.68rem;
   font-weight: 700;
   letter-spacing: 0.12em;
@@ -65,12 +85,16 @@
   margin: 10px 0;
   font-size: 1.8rem;
   letter-spacing: -0.035em;
+  background: var(--gradient-text);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
 .video-details p {
   max-width: 750px;
   margin: 0;
-  color: #858ea1;
+  color: var(--text-secondary);
   line-height: 1.7;
 }
 
@@ -83,17 +107,21 @@
 
 .video-meta span {
   padding: 7px 11px;
-  border: 1px solid #2b3445;
-  border-radius: 7px;
-  color: #858ea1;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-secondary);
+  color: var(--text-muted);
   font-size: 0.7rem;
 }
 
 .learning-sidebar {
   padding: 24px;
-  border: 1px solid #293143;
-  border-radius: 15px;
-  background: #111620;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background:
+    var(--gradient-card),
+    var(--bg-card);
+  box-shadow: var(--shadow-md);
 }
 
 .learning-sidebar h2 {
@@ -111,22 +139,36 @@
   display: flex;
   gap: 12px;
   padding: 14px 10px;
-  border-radius: 9px;
+  border-radius: var(--radius-sm);
+  transition:
+    background var(--transition-fast),
+    border-color var(--transition-fast);
+  border: 1px solid transparent;
+}
+
+.learning-lesson:hover {
+  background: rgba(139, 92, 246, 0.05);
+  border-color: var(--border);
 }
 
 .learning-lesson.active {
-  background: #1a2130;
-  border: 1px solid #313c51;
+  background:
+    linear-gradient(
+      135deg,
+      rgba(139, 92, 246, 0.12),
+      rgba(34, 211, 238, 0.05)
+    );
+  border: 1px solid var(--border-hover);
 }
 
 .learning-lesson > span {
   min-width: 28px;
-  color: #707a8d;
+  color: var(--text-muted);
   font-size: 0.72rem;
 }
 
 .learning-lesson.active > span {
-  color: #7187ff;
+  color: var(--cyan);
 }
 
 .learning-lesson strong,
@@ -140,7 +182,7 @@
 
 .learning-lesson small {
   margin-top: 4px;
-  color: #6f788b;
+  color: var(--text-muted);
   font-size: 0.68rem;
 }
 
@@ -152,16 +194,22 @@
 
 .learning-tools a {
   padding: 19px;
-  border: 1px solid #293143;
-  border-radius: 12px;
-  background: #111620;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background:
+    var(--gradient-card),
+    var(--bg-card);
   text-decoration: none;
-  transition: 0.2s;
+  transition:
+    border-color var(--transition-fast),
+    transform var(--transition-fast),
+    box-shadow var(--transition-fast);
 }
 
 .learning-tools a:hover {
-  border-color: #46516a;
+  border-color: var(--border-hover);
   transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
 }
 
 .learning-tools strong,
@@ -170,12 +218,12 @@
 }
 
 .learning-tools strong {
-  color: #e8ebf1;
+  color: var(--text-primary);
 }
 
 .learning-tools span {
   margin-top: 5px;
-  color: #717b8f;
+  color: var(--text-muted);
   font-size: 0.72rem;
 }
 

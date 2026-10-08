@@ -1,28 +1,18 @@
 import { useState } from "react";
-
 import {
   Link,
   NavLink,
   useNavigate,
 } from "react-router-dom";
-
 import { useAuth } from "../../hooks/useAuth";
-
 import ProfileMenu from "../ProfileMenu/ProfileMenu";
-
 import "./Navbar.css";
 
 function Navbar() {
-  const [open, setOpen] =
-    useState(false);
-
+  const [open, setOpen] = useState(false);
   const navigate = useNavigate();
 
-  const {
-    user,
-    loading,
-    logout,
-  } = useAuth();
+  const { user, loading, logout } = useAuth();
 
   const closeMenu = () => {
     setOpen(false);
@@ -33,37 +23,28 @@ function Navbar() {
 
     await logout();
 
-    navigate("/", {
-      replace: true,
-    });
+    navigate("/", { replace: true });
   };
 
   return (
     <header className="navbar">
       <div className="navbar-inner">
 
+        {/* Brand */}
         <Link
           to="/"
           className="brand"
           onClick={closeMenu}
         >
-          <span className="brand-mark">
-            L
-          </span>
-
-          <span className="brand-name">
-            Learnix
-          </span>
+          <span className="brand-mark">L</span>
+          <span className="brand-name">Learnix</span>
         </Link>
 
+        {/* Mobile Menu Button */}
         <button
           type="button"
           className="menu-button"
-          onClick={() =>
-            setOpen(
-              (value) => !value
-            )
-          }
+          onClick={() => setOpen((value) => !value)}
           aria-label={
             open
               ? "Close navigation"
@@ -76,10 +57,9 @@ function Navbar() {
           <span />
         </button>
 
+        {/* Navigation */}
         <nav
-          className={`nav-links ${
-            open ? "open" : ""
-          }`}
+          className={`nav-links ${open ? "open" : ""}`}
         >
           <NavLink
             to="/"
@@ -113,48 +93,48 @@ function Navbar() {
               </NavLink>
             </>
           )}
-
-          <div className="nav-auth">
-
-            {!loading && user ? (
-              <>
-                <ProfileMenu
-                  user={user}
-                  onNavigate={closeMenu}
-                />
-
-                <button
-                  type="button"
-                  className="nav-logout"
-                  onClick={handleLogout}
-                >
-                  Logout
-                </button>
-              </>
-            ) : (
-              !loading && (
-                <>
-                  <Link
-                    to="/login"
-                    className="nav-login"
-                    onClick={closeMenu}
-                  >
-                    Login
-                  </Link>
-
-                  <Link
-                    to="/register"
-                    className="nav-register"
-                    onClick={closeMenu}
-                  >
-                    Register
-                  </Link>
-                </>
-              )
-            )}
-
-          </div>
         </nav>
+
+        {/* Authentication / Profile Actions */}
+        <div className="nav-actions">
+          {!loading && user ? (
+            <>
+              <ProfileMenu
+                user={user}
+                onNavigate={closeMenu}
+              />
+
+              <button
+                type="button"
+                className="nav-logout"
+                onClick={handleLogout}
+              >
+                Logout
+              </button>
+            </>
+          ) : (
+            !loading && (
+              <>
+                <Link
+                  to="/login"
+                  className="nav-login"
+                  onClick={closeMenu}
+                >
+                  Login
+                </Link>
+
+                <Link
+                  to="/register"
+                  className="nav-register"
+                  onClick={closeMenu}
+                >
+                  Register
+                </Link>
+              </>
+            )
+          )}
+        </div>
+
       </div>
     </header>
   );

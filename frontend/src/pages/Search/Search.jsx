@@ -1,10 +1,12 @@
+import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { useState } from "react";
 
 import SearchBar from "../../components/SearchBar/SearchBar";
 import LanguageSelector from "../../components/LanguageSelector/LanguageSelector";
 import LevelSelector from "../../components/LevelSelector/LevelSelector";
 import VideoGrid from "../../components/VideoGrid/VideoGrid";
+
+import recommendationService from "../../services/recommendationService";
 
 import "./Search.css";
 
@@ -14,33 +16,98 @@ function Search() {
   const initialQuery = params.get("q") || "";
 
   const [query, setQuery] = useState(initialQuery);
-
   const [language, setLanguage] = useState("en");
-
   const [level, setLevel] = useState("beginner");
 
   const [videos, setVideos] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   const search = async (value) => {
-    setQuery(value);
+    const cleanQuery = value.trim();
 
-    // Connect to:
-    // GET /api/search/?q=...
-    // through services/api.js
+    if (!cleanQuery) {
+      setQuery("");
+      setVideos([]);
+      setError("");
+      return;
+    }
+
+    setQuery(cleanQuery);
+    setLoading(true);
+    setError("");
+
+    try {
+      const data = await recommendationService.getForTopic(
+        cleanQuery,
+        {
+          language,
+          level,
+          limit: 10,
+        }
+      );
+
+      const recommendations = Array.isArray(data?.recommendations)
+        ? data.recommendations
+        : [];
+
+      setVideos(recommendations);
+
+      if (!recommendations.length) {
+        setError(
+          `No learning videos found for "${cleanQuery}".`
+        );
+      }
+    } catch (err) {
+      console.error(
+        "Search failed:",
+        err.response?.data || err
+      );
+
+      setVideos([]);
+
+      setError(
+        err.response?.data?.detail ||
+          "Unable to find learning videos right now."
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (initialQuery.trim()) {
+      search(initialQuery);
+    }
+  }, []);
+
+  const handleLanguageChange = (value) => {
+    setLanguage(value);
+
+    if (query.trim()) {
+      search(query);
+    }
+  };
+
+  const handleLevelChange = (value) => {
+    setLevel(value);
+
+    if (query.trim()) {
+      search(query);
+    }
   };
 
   return (
     <div className="search-page">
-
       <main className="search-container">
         <div className="search-heading">
-          <span>Explore</span>
+          <span>EXPLORE</span>
 
           <h1>Find your next lesson</h1>
 
           <p>
-            Search any topic and Learnix will
-            evaluate available educational videos.
+            Search any topic and Learnix will find and evaluate
+            educational videos suited to your learning level.
           </p>
         </div>
 
@@ -49,32 +116,44 @@ function Search() {
         <div className="search-filters">
           <LanguageSelector
             value={language}
-            onChange={setLanguage}
+            onChange={handleLanguageChange}
           />
 
           <LevelSelector
             value={level}
-            onChange={setLevel}
+            onChange={handleLevelChange}
           />
         </div>
 
         <div className="results-heading">
           <div>
-            <span>Results</span>
+            <span>LEARNING RESOURCES</span>
 
             <h2>
               {query || "Recommended videos"}
             </h2>
           </div>
 
-          <small>
-            {videos.length} videos
-          </small>
+          {!loading && query && !error && (
+            <small>
+              {videos.length}{" "}
+              {videos.length === 1 ? "video" : "videos"}
+            </small>
+          )}
         </div>
 
-        <VideoGrid videos={videos} />
+        {loading ? (
+          <div className="video-empty">
+            Finding the best learning videos...
+          </div>
+        ) : error ? (
+          <div className="video-empty">
+            {error}
+          </div>
+        ) : (
+          <VideoGrid videos={videos} />
+        )}
       </main>
-
     </div>
   );
 }

@@ -35,7 +35,10 @@ export function ThemeProvider({ children }) {
 
   const toggleTheme = () => {
     setThemeState((current) => {
-      if (current === "dark") return "light";
+      if (current === "dark") {
+        return "light";
+      }
+
       return "dark";
     });
   };
@@ -53,7 +56,9 @@ export function ThemeProvider({ children }) {
         ? getSystemTheme()
         : theme;
 
-    root.classList.add(`theme-${actualTheme}`);
+    root.classList.add(
+      `theme-${actualTheme}`
+    );
 
     localStorage.setItem(
       "learnix_theme",
@@ -62,7 +67,9 @@ export function ThemeProvider({ children }) {
   }, [theme]);
 
   useEffect(() => {
-    if (theme !== "system") return;
+    if (theme !== "system") {
+      return;
+    }
 
     const mediaQuery = window.matchMedia(
       "(prefers-color-scheme: dark)"
@@ -77,7 +84,11 @@ export function ThemeProvider({ children }) {
       );
 
       root.classList.add(
-        `theme-${mediaQuery.matches ? "dark" : "light"}`
+        `theme-${
+          mediaQuery.matches
+            ? "dark"
+            : "light"
+        }`
       );
     };
 
@@ -107,14 +118,5 @@ export function ThemeProvider({ children }) {
   );
 }
 
-export function useTheme() {
-  const context = useContext(ThemeContext);
 
-  if (!context) {
-    throw new Error(
-      "useTheme must be used inside ThemeProvider"
-    );
-  }
 
-  return context;
-}

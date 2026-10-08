@@ -1,5 +1,6 @@
 .search-bar {
   width: min(760px, 100%);
+
   display: flex;
   gap: 10px;
 }
@@ -14,10 +15,15 @@
   border-radius: 12px;
 
   outline: none;
+
   background: var(--bg-card);
-  color: white;
+  color: var(--text-primary);
 
   font-size: 15px;
+}
+
+.search-bar input::placeholder {
+  color: var(--text-muted);
 }
 
 .search-bar input:focus {
@@ -32,11 +38,17 @@
 
   background: var(--accent);
   color: white;
+
   font-weight: 700;
+
+  transition:
+    background-color 0.2s ease,
+    transform 0.2s ease;
 }
 
 .search-bar button:hover {
   background: var(--accent-hover);
+  transform: translateY(-1px);
 }
 
 @media (max-width: 520px) {

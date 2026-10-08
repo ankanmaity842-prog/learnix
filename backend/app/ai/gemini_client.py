@@ -12,7 +12,7 @@ class GeminiClient:
         self.client = genai.Client(
             api_key=settings.GEMINI_API_KEY
         )
-        self.model = "gemini-2.5-flash-lite"
+        self.model = "gemini-3.5-flash-lite"
 
     async def generate(
         self,

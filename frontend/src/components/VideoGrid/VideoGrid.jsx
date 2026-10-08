@@ -1,10 +1,7 @@
 import VideoCard from "../VideoCard/VideoCard";
 import "./VideoGrid.css";
 
-function VideoGrid({
-  videos = [],
-  onOpen,
-}) {
+function VideoGrid({ videos = [], onOpen }) {
   if (!videos.length) {
     return (
       <div className="video-empty">

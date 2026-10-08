@@ -5,7 +5,15 @@
   border-radius: 9px;
 
   background: var(--bg-card);
-  color: white;
+  color: var(--text-primary);
 
   outline: none;
+
+  transition:
+    border-color 0.2s ease,
+    background-color 0.2s ease;
+}
+
+.level-selector:focus {
+  border-color: var(--accent);
 }

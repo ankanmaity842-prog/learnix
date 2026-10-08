@@ -1,13 +1,26 @@
 import api from "./api";
 
 const recommendationService = {
-  async getRecommendations(params = {}) {
+  async getForTopic(topic, params = {}) {
     const response = await api.get(
-      "/recommendations",
+      `/recommendations/for-topic/${encodeURIComponent(topic)}`,
       {
-        params,
+        params: {
+          language: "en",
+          level: "beginner",
+          limit: 10,
+          ...params,
+        },
       }
     );
+
+    return response.data;
+  },
+
+  async getRecommendations(params = {}) {
+    const response = await api.get("/recommendations", {
+      params,
+    });
 
     return response.data;
   },
