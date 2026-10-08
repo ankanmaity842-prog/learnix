@@ -4,20 +4,18 @@ from app.ai.gemini_client import gemini_client
 
 
 class TopicClassifier:
+
     async def classify(
         self,
         text: str,
         language: str = "en",
-        level: str | None = None,
+        level: str = "beginner",
     ) -> dict[str, Any]:
+
         prompt = f"""
 You are an educational topic analysis engine.
 
-Analyze the learner's query and identify the learning structure
-needed to understand the requested subject.
-
-The subject can belong to ANY educational domain. Do not restrict
-the answer to a predefined topic list.
+The learner wants videos ONLY about the exact topic they searched for.
 
 Learner query:
 {text}
@@ -25,32 +23,28 @@ Learner query:
 Learner language:
 {language}
 
-Selected learner level:
-{level or "Determine the most suitable level"}
+Requested learning level:
+{level}
 
-Difficulty must be one of beginner, intermediate, advanced.
+IMPORTANT RULES:
 
-When a selected learner level is supplied, generate search queries
-appropriate to that level:
-- beginner: fundamentals, basics, and explanations from scratch
-- intermediate: practical examples, applied concepts, and exercises
-- advanced: deeper theory, advanced concepts, and complex applications
+1. Identify the EXACT main topic from the learner query.
+2. Do NOT replace the topic with a broader related topic.
+3. Do NOT recommend adjacent technologies or subjects.
+4. If the query is "Python", the topic MUST remain "Python".
+5. For "Python", do not treat C++, Java, JavaScript, C#, PHP,
+   HTML, CSS, React, Django or other technologies as the same topic.
+6. For "React", do not return Angular, Vue or unrelated JavaScript videos.
+7. For "Machine Learning", do not return generic programming videos.
+8. For "Physics", do not return Chemistry or Mathematics videos unless
+   they are explicitly part of the searched topic.
+9. Search queries must remain tightly focused on the exact topic.
+10. The requested learning level must be reflected in the search query.
 
-Language preferences:
-- en: prefer English educational content
-- hi: prefer Hindi educational content suitable for Indian learners;
-  include Hindi terms where useful
-- bn: prefer Bengali educational content; include Bengali script
-  and phrases such as বাংলা ভাষায় where useful
-
-Determine:
-1. The main educational topic.
-2. The academic or professional domain.
-3. Important subtopics.
-4. Prerequisites.
-5. Related topics.
-6. Estimated difficulty.
-7. Up to three useful YouTube search queries.
+Difficulty:
+- beginner
+- intermediate
+- advanced
 
 Return only structured JSON.
 """
@@ -58,28 +52,44 @@ Return only structured JSON.
         schema = {
             "type": "object",
             "properties": {
-                "topic": {"type": "string"},
-                "domain": {"type": "string"},
+                "topic": {
+                    "type": "string"
+                },
+                "domain": {
+                    "type": "string"
+                },
                 "subtopics": {
                     "type": "array",
-                    "items": {"type": "string"},
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "prerequisites": {
                     "type": "array",
-                    "items": {"type": "string"},
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "related_topics": {
                     "type": "array",
-                    "items": {"type": "string"},
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "difficulty": {
                     "type": "string",
-                    "enum": ["beginner", "intermediate", "advanced"],
+                    "enum": [
+                        "beginner",
+                        "intermediate",
+                        "advanced"
+                    ]
                 },
                 "search_queries": {
                     "type": "array",
-                    "items": {"type": "string"},
-                },
+                    "items": {
+                        "type": "string"
+                    }
+                }
             },
             "required": [
                 "topic",
@@ -88,30 +98,47 @@ Return only structured JSON.
                 "prerequisites",
                 "related_topics",
                 "difficulty",
-                "search_queries",
-            ],
+                "search_queries"
+            ]
         }
 
-        result = await gemini_client.generate_json(prompt, schema)
+        result = await gemini_client.generate_json(
+            prompt,
+            schema,
+        )
 
-        allowed_levels = {"beginner", "intermediate", "advanced"}
-        detected_level = result.get("difficulty", "intermediate")
-        if detected_level not in allowed_levels:
-            detected_level = "intermediate"
+        resolved_topic = result.get(
+            "topic",
+            text.strip(),
+        )
 
-        queries = result.get("search_queries", [])
-        if not isinstance(queries, list):
-            queries = []
-        queries = [str(item).strip() for item in queries if str(item).strip()]
+        # Prevent Gemini from changing the user's actual topic.
+        if not resolved_topic.strip():
+            resolved_topic = text.strip()
 
         return {
-            "topic": result.get("topic") or text.strip(),
-            "domain": result.get("domain") or "General",
-            "subtopics": result.get("subtopics") or [],
-            "prerequisites": result.get("prerequisites") or [],
-            "related_topics": result.get("related_topics") or [],
-            "difficulty": level or detected_level,
-            "search_queries": queries[:3] or [text.strip()],
+            "topic": resolved_topic,
+            "domain": result.get(
+                "domain",
+                "General",
+            ),
+            "subtopics": result.get(
+                "subtopics",
+                [],
+            ),
+            "prerequisites": result.get(
+                "prerequisites",
+                [],
+            ),
+            "related_topics": result.get(
+                "related_topics",
+                [],
+            ),
+            "difficulty": level,
+            "search_queries": result.get(
+                "search_queries",
+                [],
+            ),
         }
 
 

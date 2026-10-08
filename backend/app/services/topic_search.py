@@ -1,104 +1,136 @@
 from typing import Any
 
-from app.ai.knowledge_graph import knowledge_graph
-from app.ai.topic_classifier import topic_classifier
-from app.services.youtube_service import youtube_service
+from app.ai.knowledge_graph import (
+    knowledge_graph,
+)
+from app.ai.topic_classifier import (
+    topic_classifier,
+)
+from app.services.youtube_service import (
+    youtube_service,
+)
 
 
 class TopicSearchService:
+
     async def analyze_topic(
         self,
         query: str,
         language: str = "en",
+        level: str = "beginner",
     ) -> dict[str, Any]:
+
         query = query.strip()
 
         if not query:
-            raise ValueError("Search query cannot be empty")
+            raise ValueError(
+                "Search query cannot be empty"
+            )
 
-        topic_info = await topic_classifier.classify(
-            text=query,
-            language=language,
+        topic_info = (
+            await topic_classifier.classify(
+                text=query,
+                language=language,
+                level=level,
+            )
         )
 
-        topic = topic_info.get("topic", query)
-        domain = topic_info.get("domain", "General")
-        subtopics = topic_info.get("subtopics", [])
-        prerequisites = topic_info.get("prerequisites", [])
-        related_topics = topic_info.get("related_topics", [])
-        difficulty = topic_info.get(
-            "difficulty",
-            "intermediate",
-        )
-        search_queries = topic_info.get(
-            "search_queries",
-            [query],
-        )
+        topic = query
 
         knowledge_graph.add_topic(
             topic=topic,
-            prerequisites=prerequisites,
-            subtopics=subtopics,
-            related_topics=related_topics,
+            prerequisites=topic_info.get(
+                "prerequisites",
+                [],
+            ),
+            subtopics=topic_info.get(
+                "subtopics",
+                [],
+            ),
+            related_topics=topic_info.get(
+                "related_topics",
+                [],
+            ),
         )
-
-        learning_path = knowledge_graph.get_learning_path(topic)
 
         return {
             "query": query,
             "topic": topic,
-            "domain": domain,
-            "subtopics": subtopics,
-            "prerequisites": prerequisites,
-            "related_topics": related_topics,
-            "difficulty": difficulty,
-            "search_queries": search_queries,
-            "learning_path": learning_path,
+            "domain": topic_info.get(
+                "domain",
+                "General",
+            ),
+            "subtopics": topic_info.get(
+                "subtopics",
+                [],
+            ),
+            "prerequisites": topic_info.get(
+                "prerequisites",
+                [],
+            ),
+            "related_topics": topic_info.get(
+                "related_topics",
+                [],
+            ),
+            "difficulty": level,
+            "search_queries": [],
+            "learning_path": (
+                knowledge_graph
+                .get_learning_path(topic)
+            ),
         }
 
     async def search(
         self,
         query: str,
         language: str = "en",
-        limit: int = 10,
+        level: str = "beginner",
+        limit: int = 20,
     ) -> dict[str, Any]:
-        topic_info = await self.analyze_topic(
-            query=query,
-            language=language,
+
+        topic_info = (
+            await self.analyze_topic(
+                query=query,
+                language=language,
+                level=level,
+            )
         )
 
-        search_queries = topic_info["search_queries"]
+        topic = topic_info["topic"]
 
-        videos = []
-        seen_video_ids = set()
+        level_terms = {
+            "beginner": (
+                "beginner basics "
+                "from scratch tutorial"
+            ),
+            "intermediate": (
+                "intermediate practical tutorial"
+            ),
+            "advanced": (
+                "advanced deep dive tutorial"
+            ),
+        }
 
-        for search_query in search_queries[:3]:
-            results = await youtube_service.search_videos(
-                query=search_query,
+        query_text = (
+            f'"{topic}" '
+            f'{level_terms.get(level, "")} '
+            "educational"
+        )
+
+        results = (
+            await youtube_service.search_videos(
+                query=query_text,
                 language=language,
-                limit=limit,
+                limit=50,
             )
+        )
 
-            for video in results:
-                video_id = (
-                    video.get("video_id")
-                    or video.get("id")
-                )
-
-                if not video_id:
-                    continue
-
-                if video_id in seen_video_ids:
-                    continue
-
-                seen_video_ids.add(video_id)
-                videos.append(video)
-
-                if len(videos) >= limit:
-                    break
-
-            if len(videos) >= limit:
-                break
+        videos = (
+            await youtube_service
+            .enrich_search_results(
+                results
+            )
+        )
 
         return {
             **topic_info,
@@ -106,4 +138,6 @@ class TopicSearchService:
         }
 
 
-topic_search_service = TopicSearchService()
+topic_search_service = (
+    TopicSearchService()
+)

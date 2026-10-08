@@ -8,7 +8,7 @@ const recommendationService = {
         params: {
           language: "en",
           level: "beginner",
-          limit: 10,
+          limit: 20,
           ...params,
         },
       }
@@ -18,9 +18,15 @@ const recommendationService = {
   },
 
   async getRecommendations(params = {}) {
-    const response = await api.get("/recommendations", {
-      params,
-    });
+    const response = await api.get(
+      "/recommendations",
+      {
+        params: {
+          limit: 20,
+          ...params,
+        },
+      }
+    );
 
     return response.data;
   },
