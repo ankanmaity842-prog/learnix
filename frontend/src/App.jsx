@@ -29,8 +29,6 @@ function App() {
       <Navbar />
 
       <Routes>
-
-        {/* Public */}
         <Route
           path="/"
           element={<Home />}
@@ -66,9 +64,7 @@ function App() {
           element={<ResetPassword />}
         />
 
-        {/* Protected */}
         <Route element={<ProtectedRoute />}>
-
           <Route
             path="/dashboard"
             element={<Dashboard />}
@@ -108,9 +104,7 @@ function App() {
             path="/settings"
             element={<Settings />}
           />
-
         </Route>
-
       </Routes>
     </>
   );

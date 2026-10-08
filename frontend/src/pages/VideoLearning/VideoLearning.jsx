@@ -1,43 +1,27 @@
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useParams } from "react-router-dom";
 import "./VideoLearning.css";
 
 function VideoLearning() {
   const location = useLocation();
+  const { videoId } = useParams();
 
   const video = location.state?.video;
 
-  if (!video) {
-    return (
-      <main className="video-learning-page">
-        <div className="learning-breadcrumb">
-          <Link to="/search">Search</Link>
-          <span>/</span>
-          <span>Learning</span>
-        </div>
+  const title =
+    video?.title || "Learning Video";
 
-        <section className="learning-empty">
-          <span>LEARNING RESOURCE</span>
+  const channel =
+    video?.channel || "Educational channel";
 
-          <h1>No lesson selected</h1>
+  const description =
+    video?.description ||
+    "Follow this lesson at your own pace and build your understanding step by step.";
 
-          <p>
-            Choose a learning video from the search page
-            to start your lesson.
-          </p>
+  const language =
+    video?.language?.toUpperCase() || "EN";
 
-          <Link
-            to="/search"
-            className="back-search-button"
-          >
-            Browse learning videos
-          </Link>
-        </section>
-      </main>
-    );
-  }
-
-  const youtubeUrl =
-    `https://www.youtube.com/watch?v=${video.video_id}`;
+  const difficulty =
+    video?.difficulty || "Beginner";
 
   return (
     <main className="video-learning-page">
@@ -51,9 +35,8 @@ function VideoLearning() {
         <div className="video-main">
           <div className="video-player">
             <iframe
-              src={`https://www.youtube.com/embed/${video.video_id}`}
-              title={video.title}
-              frameBorder="0"
+              src={`https://www.youtube-nocookie.com/embed/${videoId}?rel=0&playsinline=1`}
+              title={title}
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
               allowFullScreen
             />
@@ -62,35 +45,15 @@ function VideoLearning() {
           <div className="video-details">
             <span>RECOMMENDED LESSON</span>
 
-            <h1>{video.title}</h1>
+            <h1>{title}</h1>
 
-            <p>
-              {video.description ||
-                "Follow this lesson at your own pace and build your understanding step by step."}
-            </p>
+            <p>{description}</p>
 
             <div className="video-meta">
-              <span>
-                {video.channel}
-              </span>
-
-              <span>
-                {video.language?.toUpperCase() || "EN"}
-              </span>
-
-              <span>
-                {video.difficulty || "Beginner"}
-              </span>
+              <span>{channel}</span>
+              <span>{language}</span>
+              <span>{difficulty}</span>
             </div>
-
-            <a
-              href={youtubeUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="youtube-link"
-            >
-              Watch on YouTube
-            </a>
           </div>
         </div>
 
@@ -113,13 +76,8 @@ function VideoLearning() {
               <span>02</span>
 
               <div>
-                <strong>
-                  {video.title}
-                </strong>
-
-                <small>
-                  In progress
-                </small>
+                <strong>{title}</strong>
+                <small>In progress</small>
               </div>
             </div>
 

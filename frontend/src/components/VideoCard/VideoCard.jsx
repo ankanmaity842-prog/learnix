@@ -1,8 +1,20 @@
+import { useNavigate } from "react-router-dom";
 import DifficultyBadge from "../DifficultyBadge/DifficultyBadge";
 import "./VideoCard.css";
 
 function VideoCard({ video, onOpen }) {
-  const videoUrl = `https://www.youtube.com/watch?v=${video.video_id}`;
+  const navigate = useNavigate();
+
+  const handleOpen = () => {
+    if (onOpen) {
+      onOpen(video);
+      return;
+    }
+
+    navigate(`/video/${video.video_id}`, {
+      state: { video },
+    });
+  };
 
   return (
     <article className="video-card">
@@ -42,17 +54,7 @@ function VideoCard({ video, onOpen }) {
 
         <button
           className="watch-button"
-          onClick={() => {
-            if (onOpen) {
-              onOpen(video);
-            } else {
-              window.open(
-                videoUrl,
-                "_blank",
-                "noopener,noreferrer"
-              );
-            }
-          }}
+          onClick={handleOpen}
         >
           Start learning
         </button>
