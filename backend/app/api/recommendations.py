@@ -46,44 +46,49 @@ class RecommendationRequest(BaseModel):
         "advanced",
     ] = "beginner"
 
-    limit: int = Field(
-        default=20,
-        ge=1,
-        le=30,
+    limit: int | None = None
+
+
+def get_level_limit(
+    level: str,
+    requested_limit: int | None,
+) -> int:
+
+    if level == "beginner":
+        default = 45
+        maximum = 50
+
+    elif level == "intermediate":
+        default = 25
+        maximum = 30
+
+    else:
+        default = 12
+        maximum = 15
+
+    if requested_limit is None:
+        return default
+
+    return min(
+        max(
+            requested_limit,
+            1,
+        ),
+        maximum,
     )
-
-
-LEVEL_TERMS = {
-    "beginner": (
-        "beginner basics "
-        "from scratch tutorial"
-    ),
-    "intermediate": (
-        "intermediate practical "
-        "tutorial examples"
-    ),
-    "advanced": (
-        "advanced concepts "
-        "deep dive tutorial"
-    ),
-}
-
-
-LANGUAGE_TERMS = {
-    "en": "English",
-    "hi": "Hindi",
-    "bn": "Bengali",
-}
 
 
 async def build_recommendations(
     topic: str,
     language: str,
     level: str,
-    limit: int,
+    limit: int | None,
 ):
 
-    topic = topic.strip()
+    final_limit = get_level_limit(
+        level,
+        limit,
+    )
 
     topic_info = (
         await topic_classifier.classify(
@@ -93,8 +98,10 @@ async def build_recommendations(
         )
     )
 
-    # Preserve the user's exact search topic.
-    resolved_topic = topic
+    resolved_topic = (
+        topic_info.get("topic")
+        or topic
+    )
 
     knowledge_graph.add_topic(
         topic=resolved_topic,
@@ -112,33 +119,164 @@ async def build_recommendations(
         ),
     )
 
-    # IMPORTANT:
-    # Do NOT use Gemini related search queries.
-    # This prevents Python -> C++ / JavaScript etc.
-    search_query = (
-        f'"{resolved_topic}" '
-        f'{LEVEL_TERMS[level]} '
-        f'{LANGUAGE_TERMS[language]} '
-        f'educational'
-    )
+    level_terms = {
+        "beginner": (
+            "beginner basics "
+            "from scratch fundamentals"
+        ),
+        "intermediate": (
+            "intermediate practical "
+            "projects implementation"
+        ),
+        "advanced": (
+            "advanced deep dive "
+            "internals architecture"
+        ),
+    }
 
-    # Request many candidates so filtering does not leave
-    # only a few videos.
-    results = await youtube_service.search_videos(
-        query=search_query,
-        language=language,
-        limit=50,
-    )
+    language_terms = {
+        "en": (
+            "English educational "
+            "tutorial India"
+        ),
+        "hi": (
+            "Hindi educational "
+            "tutorial हिंदी"
+        ),
+        "bn": (
+            "Bengali educational "
+            "tutorial বাংলা"
+        ),
+    }
 
-    # Enrich with views, likes, duration and country.
+    queries = [
+        (
+            f"{resolved_topic} "
+            f"{level_terms[level]} "
+            f"{language_terms[language]}"
+        )
+    ]
+
+    # Add classifier queries while preserving
+    # the requested topic and level.
+    for search_query in topic_info.get(
+        "search_queries",
+        [],
+    ):
+
+        if len(queries) >= 6:
+            break
+
+        query = (
+            f"{resolved_topic} "
+            f"{search_query} "
+            f"{level_terms[level]} "
+            f"{language_terms[language]}"
+        )
+
+        if query not in queries:
+            queries.append(query)
+
+    candidates = {}
+
+    # We intentionally retrieve a large candidate
+    # pool because the final level filtering happens
+    # after YouTube metadata enrichment.
+    for search_query in queries:
+
+        results = (
+            await youtube_service.search_videos(
+                query=search_query,
+                language=language,
+                limit=50,
+                max_pages=3,
+                educational_only=True,
+            )
+        )
+
+        for video in results:
+
+            video_id = video.get(
+                "video_id"
+            )
+
+            if not video_id:
+                continue
+
+            candidates[
+                video_id
+            ] = video
+
     videos = (
-        await youtube_service
-        .enrich_search_results(
-            results
+        await youtube_service.enrich_search_results(
+            list(
+                candidates.values()
+            )
         )
     )
 
-    recommendations = (
+    # Strict educational filtering.
+    videos = [
+        video
+        for video in videos
+        if not youtube_service.is_entertainment(
+            " ".join(
+                [
+                    str(
+                        video.get(
+                            "title",
+                            "",
+                        )
+                    ),
+                    str(
+                        video.get(
+                            "description",
+                            "",
+                        )
+                    ),
+                    str(
+                        video.get(
+                            "channel",
+                            "",
+                        )
+                    ),
+                ]
+            )
+        )
+    ]
+
+    # Hindi/Bengali language filtering.
+    #
+    # English remains open to global educational
+    # creators, but Indian creators are ranked first.
+    if language in {"hi", "bn"}:
+
+        language_videos = [
+            video
+            for video in videos
+            if video.get(
+                "is_language_creator",
+                False,
+            )
+        ]
+
+        # If enough language-specific videos exist,
+        # use them exclusively.
+        if len(language_videos) >= final_limit:
+            videos = language_videos
+        else:
+            # Preserve strict language preference
+            # but don't return an empty page.
+            videos = (
+                language_videos
+                + [
+                    video
+                    for video in videos
+                    if video not in language_videos
+                ]
+            )
+
+    ranked = (
         recommendation_service.rank_videos(
             videos=videos,
             topic=resolved_topic,
@@ -147,10 +285,13 @@ async def build_recommendations(
         )
     )
 
-    # Exactly the requested number, maximum 30.
-    recommendations = recommendations[
-        :limit
-    ]
+    selected = (
+        recommendation_service.select_level_videos(
+            videos=ranked,
+            level=level,
+            limit=final_limit,
+        )
+    )
 
     return {
         "topic": resolved_topic,
@@ -160,21 +301,19 @@ async def build_recommendations(
         ),
         "language": language,
         "level": level,
+        "requested_count": final_limit,
+        "returned_count": len(selected),
         "difficulty": level,
         "prerequisites": topic_info.get(
             "prerequisites",
             [],
         ),
         "learning_path": (
-            knowledge_graph
-            .get_learning_path(
+            knowledge_graph.get_learning_path(
                 resolved_topic
             )
         ),
-        "count": len(
-            recommendations
-        ),
-        "recommendations": recommendations,
+        "recommendations": selected,
     }
 
 
@@ -184,7 +323,7 @@ async def get_recommendations(
 ):
 
     return await build_recommendations(
-        topic=data.topic,
+        topic=data.topic.strip(),
         language=data.language,
         level=data.level,
         limit=data.limit,
@@ -196,23 +335,18 @@ async def get_recommendations(
 )
 async def recommendations_for_topic(
     topic: str,
-
     language: Literal[
         "en",
         "hi",
         "bn",
     ] = "en",
-
     level: Literal[
         "beginner",
         "intermediate",
         "advanced",
     ] = "beginner",
-
-    limit: int = Query(
-        default=20,
-        ge=1,
-        le=30,
+    limit: int | None = Query(
+        default=None,
     ),
 ):
 
@@ -228,6 +362,34 @@ async def recommendations_for_topic(
         level=level,
         limit=limit,
     )
+
+
+@router.get("/channels")
+async def recommended_channels(
+    query: str = Query(
+        ...,
+        min_length=2,
+    ),
+    language: Literal[
+        "en",
+        "hi",
+        "bn",
+    ] = "en",
+):
+
+    channels = (
+        await youtube_service.search_channels(
+            query=query.strip(),
+            language=language,
+            limit=8,
+        )
+    )
+
+    return {
+        "query": query,
+        "language": language,
+        "channels": channels,
+    }
 
 
 @router.get("/next")

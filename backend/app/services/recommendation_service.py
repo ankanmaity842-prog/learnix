@@ -1,4 +1,3 @@
-import re
 from typing import Any
 
 from app.services.personalization_service import (
@@ -8,116 +7,48 @@ from app.services.personalization_service import (
 
 class RecommendationService:
 
-    ENTERTAINMENT_KEYWORDS = {
-        "movie",
-        "movies",
-        "film",
-        "films",
-        "song",
-        "songs",
-        "music",
-        "lyrics",
-        "dance",
-        "dancing",
-        "comedy",
-        "funny",
-        "vlog",
-        "vlogging",
-        "prank",
-        "roast",
-        "reaction",
-        "reactions",
-        "gaming",
-        "gameplay",
-        "shorts",
-        "short",
-        "trailer",
-        "celebrity",
-        "entertainment",
-        "web series",
-        "webseries",
+    LEVEL_COUNTS = {
+        "beginner": (40, 50),
+        "intermediate": (20, 30),
+        "advanced": (10, 15),
     }
 
-    UNRELATED_TECHNOLOGY_MAP = {
-        "python": {
-            "javascript",
-            "java",
-            "c++",
-            "cpp",
-            "c#",
-            "csharp",
-            "php",
-            "ruby",
-            "kotlin",
-            "swift",
-            "golang",
-            "go programming",
-            "rust",
-        },
-        "javascript": {
-            "python",
-            "java",
-            "c++",
-            "cpp",
-            "c#",
-            "csharp",
-            "php",
-        },
-        "java": {
-            "python",
-            "javascript",
-            "c++",
-            "cpp",
-            "c#",
-            "csharp",
-            "php",
-        },
-        "react": {
-            "angular",
-            "vue",
-            "python",
-            "java",
-            "c++",
-        },
-        "angular": {
-            "react",
-            "vue",
-            "python",
-            "java",
-        },
-        "vue": {
-            "react",
-            "angular",
-            "python",
-            "java",
-        },
+    LEVEL_KEYWORDS = {
+        "beginner": (
+            "beginner",
+            "basics",
+            "basic",
+            "from scratch",
+            "introduction",
+            "intro",
+            "fundamentals",
+            "easy",
+            "zero to hero",
+            "for beginners",
+        ),
+        "intermediate": (
+            "intermediate",
+            "practical",
+            "projects",
+            "project",
+            "real world",
+            "hands on",
+            "implementation",
+            "practice",
+            "examples",
+        ),
+        "advanced": (
+            "advanced",
+            "expert",
+            "deep dive",
+            "internals",
+            "architecture",
+            "optimization",
+            "system design",
+            "production",
+            "advanced concepts",
+        ),
     }
-
-    def calculate_score(
-        self,
-        topic_relevance: float,
-        transcript_simplicity: float,
-        visual_simplicity: float,
-        explanation_structure: float,
-        user_match: float,
-        duration_score: float,
-        engagement_score: float,
-    ) -> float:
-
-        score = (
-            topic_relevance * 0.40
-            + transcript_simplicity * 0.10
-            + visual_simplicity * 0.10
-            + explanation_structure * 0.05
-            + user_match * 0.15
-            + duration_score * 0.05
-            + engagement_score * 0.15
-        )
-
-        return round(
-            max(0.0, min(score, 1.0)),
-            4,
-        )
 
     def rank_videos(
         self,
@@ -139,84 +70,81 @@ class RecommendationService:
             history=history,
         )
 
-        topic = (topic or "").strip()
-
         ranked = []
 
         for video in videos:
 
-            if self._is_entertainment(video):
-                continue
-
-            if not self._is_topic_relevant(
+            topic_relevance = self._topic_relevance(
                 video,
                 topic,
-            ):
-                continue
+            )
 
-            topic_relevance = (
-                self._topic_relevance(
-                    video,
-                    topic,
+            transcript_simplicity = self._get_score(
+                video,
+                "transcript_simplicity",
+                0.5,
+            )
+
+            visual_simplicity = self._get_score(
+                video,
+                "visual_simplicity",
+                0.5,
+            )
+
+            explanation_structure = self._get_score(
+                video,
+                "explanation_structure",
+                0.5,
+            )
+
+            user_match = personalization_service.match_video(
+                video=video,
+                profile=profile,
+            )
+
+            duration_score = self._duration_score(
+                video.get("duration"),
+                learner_level,
+            )
+
+            engagement_score = self._engagement_score(
+                video
+            )
+
+            level_score = self._level_keyword_score(
+                video,
+                learner_level,
+            )
+
+            indian_score = (
+                1.0
+                if video.get(
+                    "is_indian_creator",
+                    False,
                 )
+                else 0.0
             )
 
-            transcript_simplicity = (
-                self._get_score(
-                    video,
-                    "transcript_simplicity",
-                    0.5,
+            language_score = (
+                1.0
+                if video.get(
+                    "is_language_creator",
+                    False,
                 )
+                else 0.0
             )
 
-            visual_simplicity = (
-                self._get_score(
-                    video,
-                    "visual_simplicity",
-                    0.5,
-                )
-            )
-
-            explanation_structure = (
-                self._get_score(
-                    video,
-                    "explanation_structure",
-                    0.5,
-                )
-            )
-
-            user_match = (
-                personalization_service.match_video(
-                    video=video,
-                    profile=profile,
-                )
-            )
-
-            duration_score = (
-                self._duration_score(
-                    video.get("duration"),
-                    learner_level,
-                )
-            )
-
-            engagement_score = (
-                self._engagement_score(video)
-            )
-
-            score = self.calculate_score(
-                topic_relevance=topic_relevance,
-                transcript_simplicity=(
-                    transcript_simplicity
-                ),
-                visual_simplicity=(
-                    visual_simplicity
-                ),
-                explanation_structure=(
-                    explanation_structure
-                ),
-                user_match=user_match,
-                duration_score=duration_score,
-                engagement_score=engagement_score,
+            score = (
+                topic_relevance * 0.35
+                + engagement_score * 0.20
+                + indian_score * 0.12
+                + language_score * 0.12
+                + level_score * 0.10
+                + transcript_simplicity * 0.04
+                + visual_simplicity * 0.03
+                + explanation_structure * 0.02
+                + user_match * 0.01
+                + duration_score * 0.01
             )
 
             ranked_video = {
@@ -249,105 +177,285 @@ class RecommendationService:
                     engagement_score,
                     4,
                 ),
-                "recommendation_score": score,
-                "difficulty": learner_level,
+                "level_score": round(
+                    level_score,
+                    4,
+                ),
+                "indian_creator_score": (
+                    indian_score
+                ),
+                "language_creator_score": (
+                    language_score
+                ),
+                "recommendation_score": round(
+                    max(
+                        0.0,
+                        min(score, 1.0),
+                    ),
+                    4,
+                ),
             }
 
             ranked_video["reason"] = (
                 self._build_reason(
                     ranked_video,
                     learner_level,
+                    preferred_language,
                 )
             )
 
-            ranked.append(ranked_video)
-
-        def sort_key(
-            item: dict[str, Any],
-        ):
-            views = self._safe_int(
-                item.get("views", 0)
-            )
-
-            indian = bool(
-                item.get(
-                    "is_indian_creator",
-                    False,
-                )
-            )
-
-            score = float(
-                item.get(
-                    "recommendation_score",
-                    0.0,
-                )
-            )
-
-            # Indian educational creators first.
-            # Then popularity.
-            # Then recommendation quality.
-            return (
-                indian,
-                views,
-                score,
+            ranked.append(
+                ranked_video
             )
 
         return sorted(
             ranked,
-            key=sort_key,
+            key=lambda item: (
+                item.get(
+                    "is_language_creator",
+                    False,
+                ),
+                item.get(
+                    "is_indian_creator",
+                    False,
+                ),
+                self._safe_int(
+                    item.get(
+                        "views",
+                        0,
+                    )
+                ),
+                item.get(
+                    "recommendation_score",
+                    0.0,
+                ),
+            ),
             reverse=True,
         )
 
-    def _is_topic_relevant(
+    def select_level_videos(
         self,
+        videos: list[dict[str, Any]],
+        level: str,
+        limit: int,
+        used_video_ids: set[str] | None = None,
+    ) -> list[dict[str, Any]]:
+
+        used_video_ids = (
+            used_video_ids or set()
+        )
+
+        level = level.lower()
+
+        candidates = []
+
+        for video in videos:
+
+            video_id = str(
+                video.get(
+                    "video_id",
+                    "",
+                )
+            )
+
+            if not video_id:
+                continue
+
+            if video_id in used_video_ids:
+                continue
+
+            if self._looks_like_other_level(
+                video,
+                level,
+            ):
+                continue
+
+            candidates.append(video)
+
+        # Remove duplicate titles.
+        title_seen = set()
+        unique = []
+
+        for video in candidates:
+
+            title = self._normalize_title(
+                video.get(
+                    "title",
+                    "",
+                )
+            )
+
+            if not title:
+                continue
+
+            if title in title_seen:
+                continue
+
+            title_seen.add(title)
+            unique.append(video)
+
+        # Strongest ranking:
+        # language creator -> Indian creator -> views.
+        unique.sort(
+            key=lambda item: (
+                item.get(
+                    "is_language_creator",
+                    False,
+                ),
+                item.get(
+                    "is_indian_creator",
+                    False,
+                ),
+                self._safe_int(
+                    item.get(
+                        "views",
+                        0,
+                    )
+                ),
+                item.get(
+                    "recommendation_score",
+                    0.0,
+                ),
+            ),
+            reverse=True,
+        )
+
+        return unique[:limit]
+
+    @classmethod
+    def _looks_like_other_level(
+        cls,
         video: dict[str, Any],
-        topic: str,
+        requested_level: str,
     ) -> bool:
 
-        if not topic:
-            return True
-
-        title = str(
-            video.get("title", "")
+        text = " ".join(
+            [
+                str(
+                    video.get(
+                        "title",
+                        "",
+                    )
+                ),
+                str(
+                    video.get(
+                        "description",
+                        "",
+                    )
+                ),
+            ]
         ).lower()
 
-        description = str(
-            video.get("description", "")
-        ).lower()
+        other_levels = {
+            "beginner": (
+                "advanced",
+                "expert",
+                "deep dive",
+                "system design",
+                "internals",
+            ),
+            "intermediate": (
+                "absolute beginner",
+                "from scratch",
+                "basics",
+                "advanced",
+                "expert",
+                "deep dive",
+            ),
+            "advanced": (
+                "absolute beginner",
+                "beginner basics",
+                "from scratch",
+                "introduction",
+                "intro to",
+            ),
+        }
 
-        channel = str(
-            video.get("channel", "")
-        ).lower()
-
-        text = (
-            f"{title} "
-            f"{description} "
-            f"{channel}"
-        )
-
-        topic_normalized = (
-            topic.lower().strip()
-        )
-
-        # Exact phrase gets priority.
-        if topic_normalized in title:
-            return True
-
-        if topic_normalized in description:
-            return True
-
-        # Check important individual terms.
-        topic_words = [
-            word
-            for word in re.findall(
-                r"[a-zA-Z0-9+#.]+",
-                topic_normalized,
+        return any(
+            keyword in text
+            for keyword in other_levels.get(
+                requested_level,
+                (),
             )
-            if len(word) >= 2
-        ]
+        )
+
+    @classmethod
+    def _level_keyword_score(
+        cls,
+        video: dict[str, Any],
+        level: str,
+    ) -> float:
+
+        text = " ".join(
+            [
+                str(
+                    video.get(
+                        "title",
+                        "",
+                    )
+                ),
+                str(
+                    video.get(
+                        "description",
+                        "",
+                    )
+                ),
+            ]
+        ).lower()
+
+        keywords = cls.LEVEL_KEYWORDS.get(
+            level,
+            (),
+        )
+
+        if not keywords:
+            return 0.5
+
+        matches = sum(
+            1
+            for keyword in keywords
+            if keyword in text
+        )
+
+        return min(
+            1.0,
+            0.35 + matches * 0.15,
+        )
+
+    @staticmethod
+    def _topic_relevance(
+        video: dict[str, Any],
+        topic: str | None,
+    ) -> float:
+
+        if not topic:
+            return 0.5
+
+        topic_words = {
+            word.lower()
+            for word in topic.split()
+            if len(word) > 2
+        }
+
+        text = " ".join(
+            [
+                str(
+                    video.get(
+                        "title",
+                        "",
+                    )
+                ),
+                str(
+                    video.get(
+                        "description",
+                        "",
+                    )
+                ),
+            ]
+        ).lower()
 
         if not topic_words:
-            return True
+            return 0.5
 
         matches = sum(
             1
@@ -355,117 +463,10 @@ class RecommendationService:
             if word in text
         )
 
-        if matches == len(topic_words):
-            return True
-
-        # Special protection against unrelated programming
-        # languages and frameworks.
-        unrelated = (
-            self.UNRELATED_TECHNOLOGY_MAP.get(
-                topic_normalized,
-                set(),
-            )
-        )
-
-        for keyword in unrelated:
-            if keyword in title:
-                return False
-
-        return matches >= max(
-            1,
-            len(topic_words) // 2,
-        )
-
-    def _topic_relevance(
-        self,
-        video: dict[str, Any],
-        topic: str,
-    ) -> float:
-
-        if not topic:
-            return 0.5
-
-        title = str(
-            video.get("title", "")
-        ).lower()
-
-        description = str(
-            video.get("description", "")
-        ).lower()
-
-        topic = topic.lower().strip()
-
-        if topic in title:
-            return 1.0
-
-        if topic in description:
-            return 0.9
-
-        topic_words = [
-            word
-            for word in re.findall(
-                r"[a-zA-Z0-9+#.]+",
-                topic,
-            )
-            if len(word) >= 2
-        ]
-
-        if not topic_words:
-            return 0.5
-
-        matches = sum(
-            1
-            for word in topic_words
-            if word in title
-        )
-
         return min(
-            0.85,
-            0.45
-            + (
-                matches
-                / len(topic_words)
-            )
-            * 0.4,
+            1.0,
+            matches / len(topic_words),
         )
-
-    def _is_entertainment(
-        self,
-        video: dict[str, Any],
-    ) -> bool:
-
-        title = str(
-            video.get("title", "")
-        ).lower()
-
-        description = str(
-            video.get("description", "")
-        ).lower()
-
-        combined = (
-            f"{title} {description}"
-        )
-
-        return any(
-            keyword in combined
-            for keyword in self.ENTERTAINMENT_KEYWORDS
-        )
-
-    @staticmethod
-    def _safe_int(
-        value: Any,
-    ) -> int:
-
-        try:
-            return max(
-                0,
-                int(value or 0),
-            )
-        except (
-            TypeError,
-            ValueError,
-        ):
-            return 0
 
     @staticmethod
     def _get_score(
@@ -489,7 +490,10 @@ class RecommendationService:
 
         return max(
             0.0,
-            min(value, 1.0),
+            min(
+                value,
+                1.0,
+            ),
         )
 
     @staticmethod
@@ -512,30 +516,22 @@ class RecommendationService:
             return 0.5
 
         if learner_level == "beginner":
-
             if seconds <= 900:
                 return 1.0
-
             if seconds <= 1800:
-                return 0.85
-
+                return 0.8
             if seconds <= 3600:
-                return 0.65
-
+                return 0.6
             return 0.4
 
         if learner_level == "intermediate":
-
             if seconds <= 1800:
-                return 0.85
-
+                return 0.9
             if seconds <= 3600:
                 return 1.0
-
             if seconds <= 5400:
-                return 0.85
-
-            return 0.65
+                return 0.8
+            return 0.6
 
         if seconds <= 3600:
             return 0.9
@@ -564,13 +560,19 @@ class RecommendationService:
                 continue
 
             if char == "H":
-                hours = int(number or 0)
+                hours = int(
+                    number or 0
+                )
 
             elif char == "M":
-                minutes = int(number or 0)
+                minutes = int(
+                    number or 0
+                )
 
             elif char == "S":
-                seconds = int(number or 0)
+                seconds = int(
+                    number or 0
+                )
 
             number = ""
 
@@ -585,28 +587,22 @@ class RecommendationService:
         video: dict[str, Any],
     ) -> float:
 
-        views = (
-            RecommendationService
-            ._safe_int(
-                video.get(
-                    "views",
-                    0,
-                )
+        views = RecommendationService._safe_int(
+            video.get(
+                "views",
+                0,
             )
         )
 
-        likes = (
-            RecommendationService
-            ._safe_int(
-                video.get(
-                    "likes",
-                    0,
-                )
+        likes = RecommendationService._safe_int(
+            video.get(
+                "likes",
+                0,
             )
         )
 
         if views <= 0:
-            return 0.3
+            return 0.0
 
         like_ratio = min(
             likes / views,
@@ -629,50 +625,78 @@ class RecommendationService:
         )
 
     @staticmethod
+    def _normalize_title(
+        title: str,
+    ) -> str:
+
+        return " ".join(
+            title.lower()
+            .strip()
+            .split()
+        )
+
+    @staticmethod
+    def _safe_int(
+        value: Any,
+    ) -> int:
+
+        try:
+            return max(
+                0,
+                int(value or 0),
+            )
+        except (
+            TypeError,
+            ValueError,
+        ):
+            return 0
+
+    @staticmethod
     def _build_reason(
         video: dict[str, Any],
-        learner_level: str,
+        level: str,
+        language: str,
     ) -> str:
 
         reasons = []
 
-        if video[
-            "topic_relevance"
-        ] >= 0.85:
+        if video.get(
+            "is_language_creator"
+        ):
             reasons.append(
-                "strong topic match"
-            )
-
-        if video[
-            "user_match"
-        ] >= 0.7:
-            reasons.append(
-                f"matches {learner_level} level"
+                f"{language} language creator"
             )
 
         if video.get(
-            "is_indian_creator",
-            False,
+            "is_indian_creator"
         ):
             reasons.append(
-                "Indian educational creator"
+                "Indian creator"
             )
 
         if video.get(
             "views",
             0,
-        ) > 0:
+        ):
             reasons.append(
-                "high popularity"
+                "high-view educational video"
+            )
+
+        if video.get(
+            "level_score",
+            0,
+        ) >= 0.6:
+            reasons.append(
+                f"{level} level match"
             )
 
         if not reasons:
             reasons.append(
-                "good educational match"
+                "topic and learning-level match"
             )
 
         return (
-            "Recommended because it has "
+            "Recommended because it is "
             + ", ".join(reasons)
             + "."
         )

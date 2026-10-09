@@ -11,6 +11,13 @@ import recommendationService from "../../services/recommendationService";
 import "./Search.css";
 
 
+const LEVEL_LIMITS = {
+  beginner: 45,
+  intermediate: 25,
+  advanced: 12,
+};
+
+
 function Search() {
   const [params] = useSearchParams();
 
@@ -29,6 +36,9 @@ function Search() {
   const [videos, setVideos] =
     useState([]);
 
+  const [channels, setChannels] =
+    useState([]);
+
   const [loading, setLoading] =
     useState(false);
 
@@ -39,7 +49,7 @@ function Search() {
   const search = async (
     value,
     selectedLanguage = language,
-    selectedLevel = level
+    selectedLevel = level,
   ) => {
 
     const cleanQuery =
@@ -48,6 +58,7 @@ function Search() {
     if (!cleanQuery) {
       setQuery("");
       setVideos([]);
+      setChannels([]);
       setError("");
       return;
     }
@@ -59,19 +70,21 @@ function Search() {
     try {
 
       const data =
-        await recommendationService
-          .getForTopic(
-            cleanQuery,
-            {
-              language:
-                selectedLanguage,
+        await recommendationService.getForTopic(
+          cleanQuery,
+          {
+            language:
+              selectedLanguage,
 
-              level:
-                selectedLevel,
+            level:
+              selectedLevel,
 
-              limit: 20,
-            }
-          );
+            limit:
+              LEVEL_LIMITS[
+                selectedLevel
+              ],
+          }
+        );
 
       const recommendations =
         Array.isArray(
@@ -84,11 +97,37 @@ function Search() {
         recommendations
       );
 
+      /*
+       * Channel recommendations are
+       * intentionally separate from the
+       * video result.
+       */
+      try {
+        const channelData =
+          await recommendationService.getChannels(
+            cleanQuery,
+            {
+              language:
+                selectedLanguage,
+            }
+          );
+
+        setChannels(
+          Array.isArray(
+            channelData?.channels
+          )
+            ? channelData.channels
+            : []
+        );
+      } catch {
+        setChannels([]);
+      }
+
       if (
         !recommendations.length
       ) {
         setError(
-          `No educational ${selectedLevel} videos found for "${cleanQuery}".`
+          `No ${selectedLevel} educational videos found for "${cleanQuery}".`
         );
       }
 
@@ -96,20 +135,19 @@ function Search() {
 
       console.error(
         "Search failed:",
-        err.response?.data || err
+        err.response?.data ||
+          err
       );
 
       setVideos([]);
 
       setError(
         err.response?.data?.detail ||
-          "Unable to find learning videos right now."
+          "Unable to find educational videos right now."
       );
 
     } finally {
-
       setLoading(false);
-
     }
   };
 
@@ -175,9 +213,9 @@ function Search() {
           </h1>
 
           <p>
-            Search any topic and Learnix
-            will find popular educational
-            videos matched to your level.
+            Search any educational topic
+            and Learnix will find popular,
+            level-specific learning videos.
           </p>
 
         </div>
@@ -207,6 +245,77 @@ function Search() {
         </div>
 
 
+        {channels.length > 0 && (
+
+          <section className="channel-recommendations">
+
+            <div className="results-heading">
+
+              <div>
+                <span>
+                  CHANNELS
+                </span>
+
+                <h2>
+                  Recommended channels
+                </h2>
+              </div>
+
+            </div>
+
+
+            <div className="channel-list">
+
+              {channels.map(
+                (channel) => (
+
+                  <a
+                    key={
+                      channel.channel_id
+                    }
+                    href={`https://www.youtube.com/channel/${channel.channel_id}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="channel-card"
+                  >
+
+                    {channel.thumbnail && (
+                      <img
+                        src={
+                          channel.thumbnail
+                        }
+                        alt={
+                          channel.channel
+                        }
+                      />
+                    )}
+
+                    <div>
+                      <strong>
+                        {
+                          channel.channel
+                        }
+                      </strong>
+
+                      <p>
+                        {
+                          channel.description
+                        }
+                      </p>
+                    </div>
+
+                  </a>
+
+                )
+              )}
+
+            </div>
+
+          </section>
+
+        )}
+
+
         <div className="results-heading">
 
           <div>
@@ -226,12 +335,14 @@ function Search() {
           {!loading &&
             query &&
             !error && (
+
               <small>
                 {videos.length}{" "}
                 {videos.length === 1
                   ? "video"
                   : "videos"}
               </small>
+
             )}
 
         </div>
@@ -240,12 +351,9 @@ function Search() {
         {loading ? (
 
           <div className="video-empty">
-            Finding popular educational
-            videos for{" "}
-            <strong>
-              {level}
-            </strong>{" "}
-            level...
+            Finding popular{" "}
+            {level} educational
+            videos...
           </div>
 
         ) : error ? (

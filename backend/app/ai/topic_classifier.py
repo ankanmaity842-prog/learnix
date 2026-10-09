@@ -1,6 +1,8 @@
 from typing import Any
 
-from app.ai.gemini_client import gemini_client
+from app.ai.gemini_client import (
+    gemini_client,
+)
 
 
 class TopicClassifier:
@@ -15,12 +17,12 @@ class TopicClassifier:
         prompt = f"""
 You are an educational topic analysis engine.
 
-The learner wants videos ONLY about the exact topic they searched for.
+The user wants educational YouTube content.
 
-Learner query:
+User query:
 {text}
 
-Learner language:
+Learning language:
 {language}
 
 Requested learning level:
@@ -28,23 +30,43 @@ Requested learning level:
 
 IMPORTANT RULES:
 
-1. Identify the EXACT main topic from the learner query.
-2. Do NOT replace the topic with a broader related topic.
-3. Do NOT recommend adjacent technologies or subjects.
-4. If the query is "Python", the topic MUST remain "Python".
-5. For "Python", do not treat C++, Java, JavaScript, C#, PHP,
-   HTML, CSS, React, Django or other technologies as the same topic.
-6. For "React", do not return Angular, Vue or unrelated JavaScript videos.
-7. For "Machine Learning", do not return generic programming videos.
-8. For "Physics", do not return Chemistry or Mathematics videos unless
-   they are explicitly part of the searched topic.
-9. Search queries must remain tightly focused on the exact topic.
-10. The requested learning level must be reflected in the search query.
+1. Identify the EXACT main topic requested.
+2. Do NOT replace the topic with a related technology.
+3. If the user searches "Python", the main topic must be Python.
+4. Do not broaden Python into C++, JavaScript, Java,
+   web development, or other programming languages.
+5. Related topics may be returned separately but must NOT
+   replace the main topic.
+6. Search queries must preserve the exact main topic.
+7. Search queries must be suitable for educational content.
+8. Avoid entertainment, music, movies, gaming, comedy,
+   reactions, vlogs, celebrity content and general entertainment.
+9. The requested level must be respected.
+
+Supported domains include:
+
+- Computer Science
+- Programming
+- Mathematics
+- Physics
+- Chemistry
+- Biology
+- Medicine
+- Engineering
+- History
+- Geography
+- Economics
+- Literature
+- Languages
+- Arts
+- Business
+- Law
+- Science
+- General education
+- Any other educational field
 
 Difficulty:
-- beginner
-- intermediate
-- advanced
+{level}
 
 Return only structured JSON.
 """
@@ -62,34 +84,29 @@ Return only structured JSON.
                     "type": "array",
                     "items": {
                         "type": "string"
-                    }
+                    },
                 },
                 "prerequisites": {
                     "type": "array",
                     "items": {
                         "type": "string"
-                    }
+                    },
                 },
                 "related_topics": {
                     "type": "array",
                     "items": {
                         "type": "string"
-                    }
+                    },
                 },
                 "difficulty": {
-                    "type": "string",
-                    "enum": [
-                        "beginner",
-                        "intermediate",
-                        "advanced"
-                    ]
+                    "type": "string"
                 },
                 "search_queries": {
                     "type": "array",
                     "items": {
                         "type": "string"
-                    }
-                }
+                    },
+                },
             },
             "required": [
                 "topic",
@@ -98,8 +115,8 @@ Return only structured JSON.
                 "prerequisites",
                 "related_topics",
                 "difficulty",
-                "search_queries"
-            ]
+                "search_queries",
+            ],
         }
 
         result = await gemini_client.generate_json(
@@ -107,17 +124,13 @@ Return only structured JSON.
             schema,
         )
 
-        resolved_topic = result.get(
-            "topic",
-            text.strip(),
-        )
-
-        # Prevent Gemini from changing the user's actual topic.
-        if not resolved_topic.strip():
-            resolved_topic = text.strip()
-
         return {
-            "topic": resolved_topic,
+            "topic": (
+                result.get(
+                    "topic"
+                )
+                or text.strip()
+            ),
             "domain": result.get(
                 "domain",
                 "General",
@@ -137,7 +150,9 @@ Return only structured JSON.
             "difficulty": level,
             "search_queries": result.get(
                 "search_queries",
-                [],
+                [
+                    text.strip()
+                ],
             ),
         }
 
