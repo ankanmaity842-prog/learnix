@@ -1,10 +1,12 @@
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     DEBUG: bool = True
     APP_NAME: str = "Learnix"
-    APP_VERSION: str="1.0.0"
+    APP_VERSION: str = "1.0.0"
+
     DATABASE_URL: str
 
     JWT_SECRET_KEY: str
@@ -16,10 +18,12 @@ class Settings(BaseSettings):
     YOUTUBE_API_KEY: str
     GEMINI_API_KEY: str
 
-    GOOGLE_CLIENT_ID: str
-    GOOGLE_CLIENT_SECRET: str
-    GOOGLE_REDIRECT_URI: str
-    
+    # Optional for tests and environments without Google OAuth
+    GOOGLE_CLIENT_ID: str = ""
+    GOOGLE_CLIENT_SECRET: str = ""
+    GOOGLE_REDIRECT_URI: str = (
+        "http://localhost:8000/auth/google/callback"
+    )
 
     FRONTEND_URL: str = "http://localhost:5173"
 
