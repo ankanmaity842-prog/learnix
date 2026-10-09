@@ -1,3 +1,4 @@
+
 name: Backend Tests
 
 on:
@@ -9,6 +10,16 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+
+    env:
+      DATABASE_URL: "sqlite:///./test.db"
+      JWT_SECRET_KEY: "test-secret-key-for-ci"
+      YOUTUBE_API_KEY: ""
+      GEMINI_API_KEY: ""
+      GOOGLE_CLIENT_ID: ""
+      GOOGLE_CLIENT_SECRET: ""
+      GOOGLE_REDIRECT_URI: ""
+      FRONTEND_URL: "http://localhost:5173"
 
     steps:
       - name: Checkout repository
@@ -27,4 +38,4 @@ jobs:
 
       - name: Run tests
         working-directory: backend
-        run: pytest
+        run: python -m pytest
