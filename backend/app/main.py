@@ -30,11 +30,6 @@ app = FastAPI(
 
 
 app.add_middleware(
-    RequestLoggingMiddleware
-)
-
-
-app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "https://learnix-murex.vercel.app",
@@ -44,6 +39,9 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+)
+app.add_middleware(
+    RequestLoggingMiddleware
 )
 
 
