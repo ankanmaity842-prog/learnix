@@ -1,24 +1,13 @@
+import re
 from typing import Literal
 
-from fastapi import (
-    APIRouter,
-    HTTPException,
-    Query,
-)
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from app.ai.knowledge_graph import (
-    knowledge_graph,
-)
-from app.ai.topic_classifier import (
-    topic_classifier,
-)
-from app.services.youtube_service import (
-    youtube_service,
-)
-from app.services.recommendation_service import (
-    recommendation_service,
-)
+from app.ai.knowledge_graph import knowledge_graph
+from app.ai.topic_classifier import topic_classifier
+from app.services.youtube_service import youtube_service
+from app.services.recommendation_service import recommendation_service
 
 
 router = APIRouter(
@@ -26,56 +15,52 @@ router = APIRouter(
     tags=["Recommendations"],
 )
 
+Language = Literal["en", "hi", "bn"]
+Level = Literal["beginner", "intermediate", "advanced"]
+
 
 class RecommendationRequest(BaseModel):
-
-    topic: str = Field(
-        ...,
-        min_length=2,
-    )
-
-    language: Literal[
-        "en",
-        "hi",
-        "bn",
-    ] = "en"
-
-    level: Literal[
-        "beginner",
-        "intermediate",
-        "advanced",
-    ] = "beginner"
-
+    topic: str = Field(..., min_length=2)
+    language: Language = "en"
+    level: Level = "beginner"
     limit: int | None = None
 
 
-def get_level_limit(
-    level: str,
-    requested_limit: int | None,
-) -> int:
-
-    if level == "beginner":
-        default = 45
-        maximum = 50
-
-    elif level == "intermediate":
-        default = 25
-        maximum = 30
-
-    else:
-        default = 12
-        maximum = 15
+def get_level_limit(level: str, requested_limit: int | None) -> int:
+    ranges = {
+        "beginner": (30, 30, 30),
+        "intermediate": (25, 20, 30),
+        "advanced": (12, 10, 15),
+    }
+    default, minimum, maximum = ranges[level]
 
     if requested_limit is None:
         return default
 
-    return min(
-        max(
-            requested_limit,
-            1,
-        ),
-        maximum,
-    )
+    return max(minimum, min(requested_limit, maximum))
+
+
+def _script_matches(video: dict, language: str) -> bool:
+    """
+    Conservative title/description script filter.
+    This is NOT proof of spoken language; transcript verification
+    is needed for a true spoken-language guarantee.
+    """
+    if language == "en":
+        return True
+
+    text = " ".join([
+        str(video.get("title", "")),
+        str(video.get("description", "")),
+    ])
+
+    if language == "hi":
+        return bool(re.search(r"[\u0900-\u097F]", text))
+
+    if language == "bn":
+        return bool(re.search(r"[\u0980-\u09FF]", text))
+
+    return False
 
 
 async def build_recommendations(
@@ -83,244 +68,137 @@ async def build_recommendations(
     language: str,
     level: str,
     limit: int | None,
+    channel_id: str | None = None,
 ):
+    final_limit = get_level_limit(level, limit)
 
-    final_limit = get_level_limit(
-        level,
-        limit,
+    topic_info = await topic_classifier.classify(
+        text=topic,
+        language=language,
+        level=level,
     )
-
-    topic_info = (
-        await topic_classifier.classify(
-            text=topic,
-            language=language,
-            level=level,
-        )
-    )
-
-    resolved_topic = (
-        topic_info.get("topic")
-        or topic
-    )
+    resolved_topic = topic_info.get("topic") or topic
 
     knowledge_graph.add_topic(
         topic=resolved_topic,
-        prerequisites=topic_info.get(
-            "prerequisites",
-            [],
-        ),
-        subtopics=topic_info.get(
-            "subtopics",
-            [],
-        ),
-        related_topics=topic_info.get(
-            "related_topics",
-            [],
-        ),
+        prerequisites=topic_info.get("prerequisites", []),
+        subtopics=topic_info.get("subtopics", []),
+        related_topics=topic_info.get("related_topics", []),
     )
 
     level_terms = {
-        "beginner": (
-            "beginner basics "
-            "from scratch fundamentals"
-        ),
-        "intermediate": (
-            "intermediate practical "
-            "projects implementation"
-        ),
-        "advanced": (
-            "advanced deep dive "
-            "internals architecture"
-        ),
+        "beginner": "beginner basics fundamentals from scratch",
+        "intermediate": "intermediate practical examples projects",
+        "advanced": "advanced deep dive architecture optimization",
     }
-
     language_terms = {
-        "en": (
-            "English educational "
-            "tutorial India"
-        ),
-        "hi": (
-            "Hindi educational "
-            "tutorial हिंदी"
-        ),
-        "bn": (
-            "Bengali educational "
-            "tutorial বাংলা"
-        ),
+        "en": "English educational tutorial",
+        "hi": "Hindi हिंदी शैक्षिक ट्यूटोरियल",
+        "bn": "Bengali বাংলা শিক্ষামূলক টিউটোরিয়াল",
     }
 
-    queries = [
-        (
-            f"{resolved_topic} "
-            f"{level_terms[level]} "
-            f"{language_terms[language]}"
-        )
-    ]
+    base_query = (
+        f"{resolved_topic} "
+        f"{level_terms[level]} "
+        f"{language_terms[language]}"
+    )
 
-    # Add classifier queries while preserving
-    # the requested topic and level.
-    for search_query in topic_info.get(
-        "search_queries",
-        [],
-    ):
-
-        if len(queries) >= 6:
-            break
-
-        query = (
-            f"{resolved_topic} "
-            f"{search_query} "
-            f"{level_terms[level]} "
-            f"{language_terms[language]}"
-        )
-
-        if query not in queries:
-            queries.append(query)
+    # Keep the search bounded to reduce YouTube API quota use.
+    queries = [base_query]
+    if not channel_id:
+        for item in topic_info.get("search_queries", []):
+            if len(queries) >= 3:
+                break
+            if item and item.strip():
+                query = (
+                    f"{resolved_topic} {item.strip()} "
+                    f"{level_terms[level]} {language_terms[language]}"
+                )
+                if query not in queries:
+                    queries.append(query)
 
     candidates = {}
-
-    # We intentionally retrieve a large candidate
-    # pool because the final level filtering happens
-    # after YouTube metadata enrichment.
     for search_query in queries:
-
-        results = (
-            await youtube_service.search_videos(
-                query=search_query,
-                language=language,
-                limit=50,
-                max_pages=3,
-                educational_only=True,
-            )
+        results = await youtube_service.search_videos(
+            query=search_query,
+            language=language,
+            limit=50,
+            max_pages=2,
+            educational_only=True,
+            channel_id=channel_id,
         )
 
         for video in results:
+            video_id = video.get("video_id")
+            if video_id:
+                candidates[video_id] = video
 
-            video_id = video.get(
-                "video_id"
-            )
-
-            if not video_id:
-                continue
-
-            candidates[
-                video_id
-            ] = video
-
-    videos = (
-        await youtube_service.enrich_search_results(
-            list(
-                candidates.values()
-            )
-        )
+    videos = await youtube_service.enrich_search_results(
+        list(candidates.values())
     )
 
-    # Strict educational filtering.
-    videos = [
-        video
-        for video in videos
-        if not youtube_service.is_entertainment(
-            " ".join(
-                [
-                    str(
-                        video.get(
-                            "title",
-                            "",
-                        )
-                    ),
-                    str(
-                        video.get(
-                            "description",
-                            "",
-                        )
-                    ),
-                    str(
-                        video.get(
-                            "channel",
-                            "",
-                        )
-                    ),
-                ]
-            )
-        )
-    ]
+    filtered = []
+    for video in videos:
+        text = " ".join([
+            str(video.get("title", "")),
+            str(video.get("description", "")),
+        ])
 
-    # Hindi/Bengali language filtering.
-    #
-    # English remains open to global educational
-    # creators, but Indian creators are ranked first.
-    if language in {"hi", "bn"}:
+        if youtube_service.is_entertainment(text):
+            continue
 
-        language_videos = [
-            video
-            for video in videos
-            if video.get(
-                "is_language_creator",
-                False,
-            )
-        ]
+        # Avoid cross-topic spillover where the title/description
+        # has no meaningful overlap with the requested topic.
+        if recommendation_service._topic_relevance(
+            video, resolved_topic
+        ) < 0.20:
+            continue
 
-        # If enough language-specific videos exist,
-        # use them exclusively.
-        if len(language_videos) >= final_limit:
-            videos = language_videos
-        else:
-            # Preserve strict language preference
-            # but don't return an empty page.
-            videos = (
-                language_videos
-                + [
-                    video
-                    for video in videos
-                    if video not in language_videos
-                ]
-            )
+        # For Hindi/Bengali, conservatively reject results without
+        # the corresponding script. This is a preliminary filter,
+        # not a substitute for checking actual transcript language.
+        if language in {"hi", "bn"} and not _script_matches(
+            video, language
+        ):
+            continue
 
-    ranked = (
-        recommendation_service.rank_videos(
-            videos=videos,
-            topic=resolved_topic,
-            learner_level=level,
-            preferred_language=language,
-        )
+        video["language"] = language
+        filtered.append(video)
+
+    ranked = recommendation_service.rank_videos(
+        videos=filtered,
+        topic=resolved_topic,
+        learner_level=level,
+        preferred_language=language,
     )
 
-    selected = (
-        recommendation_service.select_level_videos(
-            videos=ranked,
-            level=level,
-            limit=final_limit,
-        )
+    selected = recommendation_service.select_level_videos(
+        videos=ranked,
+        level=level,
+        limit=final_limit,
     )
 
     return {
         "topic": resolved_topic,
-        "domain": topic_info.get(
-            "domain",
-            "General",
-        ),
+        "domain": topic_info.get("domain", "General"),
         "language": language,
         "level": level,
         "requested_count": final_limit,
         "returned_count": len(selected),
         "difficulty": level,
-        "prerequisites": topic_info.get(
-            "prerequisites",
-            [],
+        "prerequisites": topic_info.get("prerequisites", []),
+        "learning_path": knowledge_graph.get_learning_path(
+            resolved_topic
         ),
-        "learning_path": (
-            knowledge_graph.get_learning_path(
-                resolved_topic
-            )
-        ),
+        "channel_id": channel_id,
         "recommendations": selected,
     }
 
 
 @router.post("/")
-async def get_recommendations(
-    data: RecommendationRequest,
-):
+async def get_recommendations(data: RecommendationRequest):
+    if not data.topic.strip():
+        raise HTTPException(status_code=400, detail="Topic cannot be empty")
 
     return await build_recommendations(
         topic=data.topic.strip(),
@@ -330,31 +208,15 @@ async def get_recommendations(
     )
 
 
-@router.get(
-    "/for-topic/{topic}"
-)
+@router.get("/for-topic/{topic}")
 async def recommendations_for_topic(
     topic: str,
-    language: Literal[
-        "en",
-        "hi",
-        "bn",
-    ] = "en",
-    level: Literal[
-        "beginner",
-        "intermediate",
-        "advanced",
-    ] = "beginner",
-    limit: int | None = Query(
-        default=None,
-    ),
+    language: Language = "en",
+    level: Level = "beginner",
+    limit: int | None = Query(default=None, ge=1, le=50),
 ):
-
     if not topic.strip():
-        raise HTTPException(
-            status_code=400,
-            detail="Topic cannot be empty",
-        )
+        raise HTTPException(status_code=400, detail="Topic cannot be empty")
 
     return await build_recommendations(
         topic=topic.strip(),
@@ -366,23 +228,13 @@ async def recommendations_for_topic(
 
 @router.get("/channels")
 async def recommended_channels(
-    query: str = Query(
-        ...,
-        min_length=2,
-    ),
-    language: Literal[
-        "en",
-        "hi",
-        "bn",
-    ] = "en",
+    query: str = Query(..., min_length=2),
+    language: Language = "en",
 ):
-
-    channels = (
-        await youtube_service.search_channels(
-            query=query.strip(),
-            language=language,
-            limit=8,
-        )
+    channels = await youtube_service.search_channels(
+        query=query.strip(),
+        language=language,
+        limit=8,
     )
 
     return {
@@ -392,12 +244,29 @@ async def recommended_channels(
     }
 
 
+@router.get("/channel/{channel_id}")
+async def recommendations_for_channel(
+    channel_id: str,
+    topic: str = Query(..., min_length=2),
+    language: Language = "en",
+    level: Level = "beginner",
+    limit: int | None = Query(default=None, ge=1, le=50),
+):
+    if not channel_id.strip():
+        raise HTTPException(status_code=400, detail="Channel ID is required")
+
+    return await build_recommendations(
+        topic=topic.strip(),
+        language=language,
+        level=level,
+        limit=limit,
+        channel_id=channel_id.strip(),
+    )
+
+
 @router.get("/next")
 async def next_recommendation():
-
     return {
         "recommendation": None,
-        "reason": (
-            "No learning history available"
-        ),
+        "reason": "No learning history available",
     }

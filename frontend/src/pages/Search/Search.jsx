@@ -7,58 +7,40 @@ import LevelSelector from "../../components/LevelSelector/LevelSelector";
 import VideoGrid from "../../components/VideoGrid/VideoGrid";
 
 import recommendationService from "../../services/recommendationService";
-
 import "./Search.css";
 
-
 const LEVEL_LIMITS = {
-  beginner: 45,
+  beginner: 30,
   intermediate: 25,
   advanced: 12,
 };
 
-
 function Search() {
   const [params] = useSearchParams();
+  const initialQuery = params.get("q") || "";
 
-  const initialQuery =
-    params.get("q") || "";
-
-  const [query, setQuery] =
-    useState(initialQuery);
-
-  const [language, setLanguage] =
-    useState("en");
-
-  const [level, setLevel] =
-    useState("beginner");
-
-  const [videos, setVideos] =
-    useState([]);
-
-  const [channels, setChannels] =
-    useState([]);
-
-  const [loading, setLoading] =
-    useState(false);
-
-  const [error, setError] =
-    useState("");
-
+  const [query, setQuery] = useState(initialQuery);
+  const [language, setLanguage] = useState("en");
+  const [level, setLevel] = useState("beginner");
+  const [videos, setVideos] = useState([]);
+  const [channels, setChannels] = useState([]);
+  const [selectedChannel, setSelectedChannel] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   const search = async (
     value,
     selectedLanguage = language,
     selectedLevel = level,
+    channel = selectedChannel
   ) => {
-
-    const cleanQuery =
-      value.trim();
+    const cleanQuery = value.trim();
 
     if (!cleanQuery) {
       setQuery("");
       setVideos([]);
       setChannels([]);
+      setSelectedChannel(null);
       setError("");
       return;
     }
@@ -68,313 +50,214 @@ function Search() {
     setError("");
 
     try {
+      const requestParams = {
+        language: selectedLanguage,
+        level: selectedLevel,
+        limit: LEVEL_LIMITS[selectedLevel],
+      };
 
-      const data =
-        await recommendationService.getForTopic(
-          cleanQuery,
-          {
-            language:
-              selectedLanguage,
-
-            level:
-              selectedLevel,
-
-            limit:
-              LEVEL_LIMITS[
-                selectedLevel
-              ],
-          }
-        );
-
-      const recommendations =
-        Array.isArray(
-          data?.recommendations
-        )
-          ? data.recommendations
-          : [];
-
-      setVideos(
-        recommendations
-      );
-
-      /*
-       * Channel recommendations are
-       * intentionally separate from the
-       * video result.
-       */
-      try {
-        const channelData =
-          await recommendationService.getChannels(
+      const data = channel
+        ? await recommendationService.getForChannel(
+            channel.channel_id,
             cleanQuery,
-            {
-              language:
-                selectedLanguage,
-            }
+            requestParams
+          )
+        : await recommendationService.getForTopic(
+            cleanQuery,
+            requestParams
           );
 
-        setChannels(
-          Array.isArray(
-            channelData?.channels
-          )
-            ? channelData.channels
-            : []
-        );
-      } catch {
+      const recommendations = Array.isArray(data?.recommendations)
+        ? data.recommendations
+        : [];
+
+      setVideos(recommendations);
+
+      // Channel suggestions are shown only in topic-search mode.
+      if (!channel) {
+        try {
+          const channelData =
+            await recommendationService.getChannels(cleanQuery, {
+              language: selectedLanguage,
+            });
+
+          setChannels(
+            Array.isArray(channelData?.channels)
+              ? channelData.channels
+              : []
+          );
+        } catch {
+          setChannels([]);
+        }
+      } else {
         setChannels([]);
       }
 
-      if (
-        !recommendations.length
-      ) {
+      if (!recommendations.length) {
         setError(
-          `No ${selectedLevel} educational videos found for "${cleanQuery}".`
+          `No eligible ${selectedLevel} videos found for "${cleanQuery}"` +
+            (channel ? ` from ${channel.channel}.` : ".")
         );
       }
-
     } catch (err) {
-
-      console.error(
-        "Search failed:",
-        err.response?.data ||
-          err
-      );
-
+      console.error("Search failed:", err.response?.data || err);
       setVideos([]);
-
       setError(
         err.response?.data?.detail ||
           "Unable to find educational videos right now."
       );
-
     } finally {
       setLoading(false);
     }
   };
 
-
   useEffect(() => {
-
-    if (
-      initialQuery.trim()
-    ) {
-      search(
-        initialQuery,
-        "en",
-        "beginner"
-      );
+    if (initialQuery.trim()) {
+      search(initialQuery, "en", "beginner", null);
     }
-
+    // Initial URL query should run once on page mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const handleLanguageChange = (value) => {
+    setLanguage(value);
+    if (query.trim()) {
+      search(query, value, level, selectedChannel);
+    }
+  };
 
-  const handleLanguageChange =
-    (value) => {
+  const handleLevelChange = (value) => {
+    setLevel(value);
+    if (query.trim()) {
+      search(query, language, value, selectedChannel);
+    }
+  };
 
-      setLanguage(value);
+  const handleChannelSelect = (channel) => {
+    setSelectedChannel(channel);
+    search(query, language, level, channel);
+  };
 
-      if (query.trim()) {
-        search(
-          query,
-          value,
-          level
-        );
-      }
-    };
-
-
-  const handleLevelChange =
-    (value) => {
-
-      setLevel(value);
-
-      if (query.trim()) {
-        search(
-          query,
-          language,
-          value
-        );
-      }
-    };
-
+  const clearSelectedChannel = () => {
+    setSelectedChannel(null);
+    search(query, language, level, null);
+  };
 
   return (
     <div className="search-page">
-
       <main className="search-container">
-
         <div className="search-heading">
-
-          <span>
-            EXPLORE
-          </span>
-
-          <h1>
-            Find your next lesson
-          </h1>
-
+          <span>EXPLORE</span>
+          <h1>Find your next lesson</h1>
           <p>
-            Search any educational topic
-            and Learnix will find popular,
+            Search educational topics or choose a channel to see
             level-specific learning videos.
           </p>
-
         </div>
-
-
-        <SearchBar
-          onSearch={search}
+       <SearchBar
+        onSearch={(value) => {
+        setSelectedChannel(null);
+        search(value, language, level, null);
+         }}
         />
 
-
         <div className="search-filters">
-
           <LanguageSelector
             value={language}
-            onChange={
-              handleLanguageChange
-            }
+            onChange={handleLanguageChange}
           />
 
           <LevelSelector
             value={level}
-            onChange={
-              handleLevelChange
-            }
+            onChange={handleLevelChange}
           />
-
         </div>
 
+        {selectedChannel && (
+          <section className="selected-channel">
+            <p>
+              Showing videos only from{" "}
+              <strong>{selectedChannel.channel}</strong>
+            </p>
+            <button type="button" onClick={clearSelectedChannel}>
+              Back to topic results
+            </button>
+          </section>
+        )}
 
-        {channels.length > 0 && (
-
+        {!selectedChannel && channels.length > 0 && (
           <section className="channel-recommendations">
-
             <div className="results-heading">
-
               <div>
-                <span>
-                  CHANNELS
-                </span>
-
-                <h2>
-                  Recommended channels
-                </h2>
+                <span>CHANNELS</span>
+                <h2>Suggested channels</h2>
+                <p>
+                  Choose a channel to restrict video results to that creator.
+                </p>
               </div>
-
             </div>
-
 
             <div className="channel-list">
+              {channels.map((channel) => (
+                <button
+                  key={channel.channel_id}
+                  type="button"
+                  className="channel-card"
+                  onClick={() => handleChannelSelect(channel)}
+                >
+                  {channel.thumbnail && (
+                    <img
+                      src={channel.thumbnail}
+                      alt=""
+                      loading="lazy"
+                    />
+                  )}
 
-              {channels.map(
-                (channel) => (
-
-                  <a
-                    key={
-                      channel.channel_id
-                    }
-                    href={`https://www.youtube.com/channel/${channel.channel_id}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="channel-card"
-                  >
-
-                    {channel.thumbnail && (
-                      <img
-                        src={
-                          channel.thumbnail
-                        }
-                        alt={
-                          channel.channel
-                        }
-                      />
+                  <div>
+                    <strong>{channel.channel}</strong>
+                    <p>{channel.description}</p>
+                    {typeof channel.match_score === "number" && (
+                      <small>
+                        Name match:{" "}
+                        {Math.round(channel.match_score * 100)}%
+                      </small>
                     )}
-
-                    <div>
-                      <strong>
-                        {
-                          channel.channel
-                        }
-                      </strong>
-
-                      <p>
-                        {
-                          channel.description
-                        }
-                      </p>
-                    </div>
-
-                  </a>
-
-                )
-              )}
-
+                  </div>
+                </button>
+              ))}
             </div>
-
           </section>
-
         )}
-
 
         <div className="results-heading">
-
           <div>
-
-            <span>
-              LEARNING RESOURCES
-            </span>
-
+            <span>LEARNING RESOURCES</span>
             <h2>
-              {query ||
-                "Recommended videos"}
+              {selectedChannel
+                ? selectedChannel.channel
+                : query || "Recommended videos"}
             </h2>
-
           </div>
 
-
-          {!loading &&
-            query &&
-            !error && (
-
-              <small>
-                {videos.length}{" "}
-                {videos.length === 1
-                  ? "video"
-                  : "videos"}
-              </small>
-
-            )}
-
+          {!loading && query && !error && (
+            <small>
+              {videos.length} {videos.length === 1 ? "video" : "videos"}
+            </small>
+          )}
         </div>
 
-
         {loading ? (
-
           <div className="video-empty">
-            Finding popular{" "}
-            {level} educational
-            videos...
+            Finding popular {level} educational videos...
           </div>
-
         ) : error ? (
-
-          <div className="video-empty">
-            {error}
-          </div>
-
+          <div className="video-empty">{error}</div>
         ) : (
-
-          <VideoGrid
-            videos={videos}
-          />
-
+          <VideoGrid videos={videos} />
         )}
-
       </main>
-
     </div>
   );
 }
-
 
 export default Search;
