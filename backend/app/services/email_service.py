@@ -1,67 +1,98 @@
+
+import asyncio
+import logging
 import smtplib
 from email.message import EmailMessage
 
 from app.config import settings
 
+logger = logging.getLogger(__name__)
+
 
 class EmailService:
-
-    def send_password_reset_email(
+    async def send_password_reset_code(
         self,
         email: str,
-        reset_url: str,
-    ) -> None:
+        code: str,
+    ) -> bool:
+        environment = settings.ENVIRONMENT.strip().lower()
 
-        if not settings.SMTP_HOST:
-            raise RuntimeError(
-                "SMTP is not configured"
+        if environment in {"development", "local"}:
+            logger.warning(
+                "[LOCAL DEVELOPMENT ONLY] Password reset OTP "
+                "for %s: %s",
+                email,
+                code,
             )
+            return True
+
+        required_values = (
+            settings.SMTP_HOST,
+            settings.SMTP_USERNAME,
+            settings.SMTP_PASSWORD,
+            settings.SMTP_FROM_EMAIL or settings.SMTP_USERNAME,
+        )
+
+        if not all(required_values):
+            logger.error(
+                "Password-reset email failed: SMTP settings "
+                "are incomplete."
+            )
+            return False
 
         message = EmailMessage()
-
-        message["Subject"] = (
-            "Reset your Learnix password"
+        message["Subject"] = "Your Learnix password reset code"
+        message["From"] = (
+            settings.SMTP_FROM_EMAIL or settings.SMTP_USERNAME
         )
-        message["From"] = settings.SMTP_FROM_EMAIL
         message["To"] = email
-
         message.set_content(
-            f"""
-Hello,
+            f"""Hello,
 
-We received a request to reset your Learnix password.
+Your Learnix password reset code is: {code}
 
-Use the following link to create a new password:
+This code expires in
+{settings.PASSWORD_RESET_TOKEN_EXPIRE_MINUTES} minutes.
 
-{reset_url}
+If you did not request a password reset, you can ignore
+this email.
 
-This link will expire soon.
-
-If you did not request this password reset,
-you can safely ignore this email.
-
-Learnix
+Learnix Team
 """
         )
 
+        try:
+            await asyncio.to_thread(
+                self._send_smtp,
+                message,
+            )
+            return True
+        except Exception:
+            # Do not log the OTP, message body, or SMTP password.
+            logger.exception(
+                "Unable to deliver the password-reset email."
+            )
+            return False
+
+    @staticmethod
+    def _send_smtp(message: EmailMessage) -> None:
         with smtplib.SMTP(
             settings.SMTP_HOST,
             settings.SMTP_PORT,
+            timeout=20,
         ) as server:
+            server.ehlo()
 
             if settings.SMTP_USE_TLS:
                 server.starttls()
+                server.ehlo()
 
-            if (
-                settings.SMTP_USERNAME
-                and settings.SMTP_PASSWORD
-            ):
-                server.login(
-                    settings.SMTP_USERNAME,
-                    settings.SMTP_PASSWORD,
-                )
-
+            server.login(
+                settings.SMTP_USERNAME,
+                settings.SMTP_PASSWORD,
+            )
             server.send_message(message)
 
 
 email_service = EmailService()
+

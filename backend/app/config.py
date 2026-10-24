@@ -4,6 +4,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     DEBUG: bool = True
+    ENVIRONMENT: str = "development"
+
     APP_NAME: str = "Learnix"
     APP_VERSION: str = "1.0.0"
 
@@ -12,13 +14,11 @@ class Settings(BaseSettings):
     JWT_SECRET_KEY: str
     JWT_ALGORITHM: str = "HS256"
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
-
-    PASSWORD_RESET_TOKEN_EXPIRE_MINUTES: int = 15
+    PASSWORD_RESET_TOKEN_EXPIRE_MINUTES: int = 10
 
     YOUTUBE_API_KEY: str
     GEMINI_API_KEY: str
 
-    # Optional for tests and environments without Google OAuth
     GOOGLE_CLIENT_ID: str = ""
     GOOGLE_CLIENT_SECRET: str = ""
     GOOGLE_REDIRECT_URI: str = (
@@ -27,6 +27,13 @@ class Settings(BaseSettings):
 
     FRONTEND_URL: str = "http://localhost:5173"
 
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 587
+    SMTP_USERNAME: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_FROM_EMAIL: str = ""
+    SMTP_USE_TLS: bool = True
+
     model_config = SettingsConfigDict(
         env_file=".env",
         extra="ignore",
@@ -34,3 +41,5 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+

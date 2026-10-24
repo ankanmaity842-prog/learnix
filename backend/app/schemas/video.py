@@ -1,4 +1,5 @@
-from pydantic import BaseModel, ConfigDict
+
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class VideoResponse(BaseModel):
@@ -7,13 +8,14 @@ class VideoResponse(BaseModel):
     id: int
     youtube_id: str
     title: str
+
     description: str | None = None
     channel_name: str | None = None
     url: str
     duration_seconds: int | None = None
 
-    views: int = 0
-    likes: int = 0
+    views: int = Field(default=0, ge=0)
+    likes: int = Field(default=0, ge=0)
 
     language: str = "en"
     channel_country: str | None = None
@@ -28,14 +30,16 @@ class VideoResponse(BaseModel):
 
 
 class VideoSearchRequest(BaseModel):
-    query: str
+    query: str = Field(..., min_length=2)
     language: str = "en"
     level: str = "beginner"
-    max_results: int = 20
+    max_results: int = Field(default=20, ge=1, le=50)
 
 
 class VideoSearchResponse(BaseModel):
     query: str
     language: str
     level: str
+    videos: list[VideoResponse]
+
     videos: list[VideoResponse]

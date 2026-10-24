@@ -1,3 +1,4 @@
+
 import re
 from typing import Any
 
@@ -7,36 +8,185 @@ from app.services.personalization_service import personalization_service
 class RecommendationService:
     LEVEL_KEYWORDS = {
         "beginner": (
-            "beginner", "basics", "basic", "from scratch",
-            "introduction", "intro", "fundamentals",
-            "for beginners", "zero to hero",
+            "beginner",
+            "beginners",
+            "beginner friendly",
+            "beginner-level",
+            "beginner level",
+            "absolute beginner",
+            "basic level",
+            "basics for beginners",
+            "from scratch",
+            "no prior experience",
+            "no previous experience",
+            "introduction for beginners",
         ),
         "intermediate": (
-            "intermediate", "practical", "projects",
-            "real world", "hands on", "implementation",
-            "practice", "examples",
+            "intermediate",
+            "intermediate-level",
+            "intermediate level",
+            "intermediate tutorial",
+            "intermediate project",
+            "beyond the basics",
+            "prior knowledge required",
         ),
         "advanced": (
-            "advanced", "expert", "deep dive", "internals",
-            "architecture", "optimization", "system design",
-            "production",
+            "advanced",
+            "advanced-level",
+            "advanced level",
+            "advanced tutorial",
+            "advanced project",
+            "expert-level",
+            "expert level",
+            "deep dive",
+            "production-level",
+            "production ready",
         ),
     }
 
-    OTHER_LEVEL_TERMS = {
-        "beginner": (
-            "advanced tutorial", "expert level", "deep dive",
-            "system design", "internals",
+    PROJECT_KEYWORDS = (
+        "project",
+        "projects",
+        "build",
+        "building",
+        "implementation",
+        "end-to-end",
+        "end to end",
+        "deploy",
+        "deployment",
+        "real-world application",
+        "real world application",
+    )
+
+    TOPIC_ALIASES = {
+        "css": ("css", "cascading style sheets"),
+        "html": ("html", "hypertext markup language"),
+        "js": ("javascript", "java script", "js"),
+        "javascript": ("javascript", "java script", "js"),
+        "react": ("react", "react.js", "reactjs"),
+        "python": ("python",),
+        "java": ("java", "java programming", "java language"),
+        "c++": ("c++", "cpp", "c plus plus"),
+        "c#": ("c#", "c sharp"),
+        "sql": ("sql", "structured query language"),
+        "machine learning": ("machine learning", "ml"),
+        "artificial intelligence": (
+            "artificial intelligence",
+            "machine intelligence",
+            "ai",
         ),
-        "intermediate": (
-            "absolute beginner", "from scratch for beginners",
-            "advanced tutorial", "expert level", "deep dive",
-        ),
-        "advanced": (
-            "absolute beginner", "beginner basics",
-            "from scratch", "introduction to", "intro to",
-        ),
+        "node.js": ("node.js", "nodejs", "node js"),
+        "next.js": ("next.js", "nextjs", "next js"),
     }
+
+    VALID_LEVELS = {"beginner", "intermediate", "advanced"}
+
+    @staticmethod
+    def _text(video: dict[str, Any]) -> str:
+        return " ".join(
+            str(video.get(field) or "")
+            for field in ("title", "description")
+        ).casefold()
+
+    @staticmethod
+    def _normalize_words(value: str) -> str:
+        return " ".join(
+            re.findall(r"\w+", str(value).casefold())
+        )
+
+    @staticmethod
+    def _contains_phrase(text: str, phrase: str) -> bool:
+        text = str(text or "").casefold()
+        phrase = str(phrase or "").casefold().strip()
+
+        if not text or not phrase:
+            return False
+
+        # Normalize ordinary phrases by whitespace, but preserve symbols
+        # so C++, C#, and Node.js can be handled explicitly.
+        escaped = re.escape(phrase)
+        escaped = escaped.replace(r"\ ", r"\s+")
+
+        return re.search(
+            rf"(?<!\w){escaped}(?!\w)",
+            text,
+        ) is not None
+
+    @classmethod
+    def matches_level(
+        cls,
+        video: dict[str, Any],
+        requested_level: str,
+    ) -> bool:
+        requested_level = str(
+            requested_level or ""
+        ).strip().casefold()
+
+        if requested_level not in cls.VALID_LEVELS:
+            return False
+
+        text = cls._text(video)
+        matched_levels = {
+            level
+            for level, phrases in cls.LEVEL_KEYWORDS.items()
+            if any(
+                cls._contains_phrase(text, phrase)
+                for phrase in phrases
+            )
+        }
+
+        return matched_levels == {requested_level}
+
+    @classmethod
+    def _topic_relevance(
+        cls,
+        video: dict[str, Any],
+        topic: str | None,
+    ) -> float:
+        if not topic or not topic.strip():
+            return 0.5
+
+        text = cls._text(video)
+
+        if not text:
+            return 0.0
+
+        normalized_topic = cls._normalize_words(topic)
+
+        if not normalized_topic:
+            return 0.5
+
+        aliases = cls.TOPIC_ALIASES.get(normalized_topic)
+
+        if aliases:
+            return (
+                1.0
+                if any(
+                    cls._contains_phrase(text, alias)
+                    for alias in aliases
+                )
+                else 0.0
+            )
+
+        words = [
+            word
+            for word in normalized_topic.split()
+            if len(word) > 2
+        ]
+
+        if not words:
+            return (
+                1.0
+                if cls._contains_phrase(text, topic)
+                else 0.0
+            )
+
+        matched = sum(
+            cls._contains_phrase(text, word)
+            for word in words
+        )
+
+        return matched / len(words)
 
     def rank_videos(
         self,
@@ -47,60 +197,101 @@ class RecommendationService:
         knowledge: dict[str, float] | None = None,
         history: list[dict[str, Any]] | None = None,
     ) -> list[dict[str, Any]]:
-        profile = personalization_service.build_profile(
-            learner_level=learner_level,
-            preferred_language=preferred_language,
-            knowledge=knowledge or {},
-            history=history or [],
-        )
+        level = str(
+            learner_level or "beginner"
+        ).strip().casefold()
+
+        if level not in self.VALID_LEVELS:
+            level = "beginner"
+
+        try:
+            profile = personalization_service.build_profile(
+                learner_level=level,
+                preferred_language=preferred_language,
+                knowledge=knowledge or {},
+                history=history or [],
+            )
+        except Exception:
+            profile = None
 
         ranked = []
-        for video in videos:
+        seen_ids = set()
+
+        for video in videos or []:
+            if not isinstance(video, dict):
+                continue
+
+            video_id = str(
+                video.get("video_id") or video.get("id") or ""
+            ).strip()
+
+            if not video_id or video_id in seen_ids:
+                continue
+
             topic_score = self._topic_relevance(video, topic)
+
             if topic and topic_score < 0.20:
                 continue
 
+            level_verified = self.matches_level(video, level)
             engagement = self._engagement_score(video)
-            level_score = self._level_score(video, learner_level)
-            user_match = self._safe_float(
-                personalization_service.match_video(
-                    video=video,
-                    profile=profile,
+            is_project = self._is_project_description(video)
+
+            try:
+                user_match = (
+                    personalization_service.match_video(video, profile)
+                    if profile is not None
+                    else 0.0
                 )
-            )
+            except Exception:
+                user_match = 0.0
+
+            user_match = self._safe_float(user_match)
 
             score = (
-                topic_score * 0.45
-                + engagement * 0.25
-                + level_score * 0.15
-                + user_match * 0.05
-                + (0.10 if video.get("is_indian_creator") else 0.0)
+                topic_score * 0.65
+                + engagement * 0.15
+                + user_match * 0.10
+                + (0.05 if video.get("is_indian_creator") else 0.0)
+                + (0.05 if is_project else 0.0)
             )
 
             ranked.append({
                 **video,
+                "video_id": video_id,
+                "difficulty": level,
+                "level_verified": level_verified,
+                "level_match": (
+                    "verified" if level_verified else "unverified"
+                ),
+                "is_project_related": is_project,
                 "topic_relevance": round(topic_score, 4),
                 "engagement_score": round(engagement, 4),
-                "level_score": round(level_score, 4),
                 "user_match": round(user_match, 4),
-                "recommendation_score": round(min(score, 1.0), 4),
+                "recommendation_score": round(
+                    max(0.0, min(score, 1.0)),
+                    4,
+                ),
                 "reason": self._build_reason(
-                    video, learner_level, preferred_language
+                    video,
+                    level,
+                    preferred_language,
+                    level_verified,
                 ),
             })
 
-        # Indian creators first; within that group, topic score and views
-        # determine the order. For Hindi/Bengali, strict filtering belongs
-        # in the router before this ranking stage.
+            seen_ids.add(video_id)
+
         ranked.sort(
             key=lambda item: (
-                bool(item.get("is_indian_creator")),
-                item.get("topic_relevance", 0),
+                item["level_verified"],
+                item["topic_relevance"],
+                item["recommendation_score"],
                 self._safe_int(item.get("views")),
-                item.get("recommendation_score", 0),
             ),
             reverse=True,
         )
+
         return ranked
 
     def select_level_videos(
@@ -110,27 +301,59 @@ class RecommendationService:
         limit: int,
         used_video_ids: set[str] | None = None,
     ) -> list[dict[str, Any]]:
+        level = str(level or "beginner").strip().casefold()
+
+        if level not in self.VALID_LEVELS or limit <= 0:
+            return []
+
         used_video_ids = used_video_ids or set()
         selected = []
         seen_ids = set()
         seen_titles = set()
 
-        for video in videos:
-            video_id = str(video.get("video_id") or "")
-            title = self._normalize_title(video.get("title", ""))
-
-            if not video_id or not title:
+        for video in videos or []:
+            if not isinstance(video, dict):
                 continue
+
+            video_id = str(
+                video.get("video_id") or video.get("id") or ""
+            ).strip()
+
+            if not video_id:
+                continue
+
+            title = self._normalize_title(
+                str(video.get("title") or "")
+            )
+
             if video_id in used_video_ids or video_id in seen_ids:
                 continue
-            if title in seen_titles:
-                continue
-            if self._looks_like_other_level(video, level):
+
+            if title and title in seen_titles:
                 continue
 
+            verified = bool(
+                video.get(
+                    "level_verified",
+                    video.get("levelVerified", False),
+                )
+            )
+
+            selected.append({
+                **video,
+                "video_id": video_id,
+                "difficulty": level,
+                "level_verified": verified,
+                "level_match": (
+                    "verified" if verified else "unverified"
+                ),
+                "is_project_related": self._is_project_description(video),
+            })
+
             seen_ids.add(video_id)
-            seen_titles.add(title)
-            selected.append(video)
+
+            if title:
+                seen_titles.add(title)
 
             if len(selected) >= limit:
                 break
@@ -138,58 +361,20 @@ class RecommendationService:
         return selected
 
     @classmethod
-    def _looks_like_other_level(
+    def _is_project_description(
         cls,
         video: dict[str, Any],
-        requested_level: str,
     ) -> bool:
-        title = str(video.get("title", "")).casefold()
+        text = cls._text(video)
         return any(
-            phrase in title
-            for phrase in cls.OTHER_LEVEL_TERMS.get(
-                requested_level, ()
-            )
+            cls._contains_phrase(text, phrase)
+            for phrase in cls.PROJECT_KEYWORDS
         )
 
-    @classmethod
-    def _level_score(
-        cls,
-        video: dict[str, Any],
-        level: str,
-    ) -> float:
-        title = str(video.get("title", "")).casefold()
-        matches = sum(
-            1 for keyword in cls.LEVEL_KEYWORDS.get(level, ())
-            if keyword in title
-        )
-        return min(1.0, 0.4 + matches * 0.15)
-
     @staticmethod
-    def _topic_relevance(
+    def _engagement_score(
         video: dict[str, Any],
-        topic: str | None,
     ) -> float:
-        if not topic:
-            return 0.5
-
-        topic_words = {
-            word.casefold()
-            for word in re.findall(r"\w+", topic)
-            if len(word) > 2
-        }
-        if not topic_words:
-            return 0.5
-
-        text = " ".join([
-            str(video.get("title", "")),
-            str(video.get("description", "")),
-        ]).casefold()
-
-        matched = sum(1 for word in topic_words if word in text)
-        return matched / len(topic_words)
-
-    @staticmethod
-    def _engagement_score(video: dict[str, Any]) -> float:
         views = RecommendationService._safe_int(video.get("views"))
         likes = RecommendationService._safe_int(video.get("likes"))
 
@@ -198,12 +383,13 @@ class RecommendationService:
 
         view_score = min(views / 1_000_000, 1.0)
         like_ratio = min(likes / views, 0.10) / 0.10
+
         return 0.6 * view_score + 0.4 * like_ratio
 
     @staticmethod
     def _normalize_title(title: str) -> str:
         return " ".join(
-            re.sub(r"[^\w\s]", "", title.casefold()).split()
+            re.sub(r"[^\w\s]", "", str(title).casefold()).split()
         )
 
     @staticmethod
@@ -220,18 +406,37 @@ class RecommendationService:
         except (TypeError, ValueError):
             return 0.0
 
-    @staticmethod
+    @classmethod
     def _build_reason(
+        cls,
         video: dict[str, Any],
         level: str,
         language: str,
+        level_verified: bool = False,
     ) -> str:
-        reasons = [f"{level} learning level"]
+        if level_verified:
+            reasons = [
+                f"content explicitly identifies {level} material"
+            ]
+        else:
+            reasons = [
+                f"topic is relevant; {level} suitability is unverified"
+            ]
+
+        if cls._is_project_description(video):
+            reasons.append("project-related content")
+
         if video.get("is_indian_creator"):
             reasons.append("Indian creator")
-        if video.get("views"):
+
+        if cls._safe_int(video.get("views")) > 0:
             reasons.append("view-count popularity")
-        return "Recommended for " + ", ".join(reasons) + "."
+
+        return "Recommended because " + ", ".join(reasons) + "."
 
 
 recommendation_service = RecommendationService()
+
+
+
+

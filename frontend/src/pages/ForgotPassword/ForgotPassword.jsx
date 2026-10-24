@@ -1,36 +1,63 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
 
+import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import axios from "axios";
 import "./ForgotPassword.css";
-import api from "../../services/api";
+
+const API_URL = (
+  import.meta.env.VITE_API_URL || "http://localhost:8000"
+).replace(/\/$/, "");
 
 export default function ForgotPassword() {
+  const navigate = useNavigate();
+
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
   const handleSubmit = async (event) => {
     event.preventDefault();
-
-    setLoading(true);
-    setMessage("");
     setError("");
+    setSuccess("");
+
+    const normalizedEmail = email.trim().toLowerCase();
+
+    if (!normalizedEmail) {
+      setError("Please enter your email address.");
+      return;
+    }
 
     try {
-      const response = await api.post(
-        "/auth/forgot-password",
-        { email }
+      setLoading(true);
+
+      const response = await axios.post(
+        `${API_URL}/auth/forgot-password`,
+        { email: normalizedEmail }
       );
 
-      setMessage(
+      const message =
         response.data?.message ||
-          "If the email is registered, a password reset link has been sent."
-      );
+        "If an eligible account exists, reset instructions will be sent.";
+
+      const challengeToken = response.data?.challenge_token;
+
+      if (challengeToken) {
+        navigate("/reset-password", {
+          state: {
+            email: normalizedEmail,
+            challengeToken,
+          },
+        });
+        return;
+      }
+
+      // Keep the response generic to avoid revealing whether an account exists.
+      setSuccess(message);
     } catch (err) {
       setError(
         err.response?.data?.detail ||
-          "Unable to process your request."
+          "Unable to process your request. Please try again."
       );
     } finally {
       setLoading(false);
@@ -40,63 +67,78 @@ export default function ForgotPassword() {
   return (
     <main className="forgot-page">
       <section className="forgot-card">
-        <div className="forgot-logo">L</div>
-
-        <div className="forgot-header">
-          <h1>Forgot your password?</h1>
-
-          <p>
-            Enter the email associated with your Learnix
-            account and we'll send you a password reset link.
-          </p>
+        <div className="forgot-icon" aria-hidden="true">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <rect
+              x="3"
+              y="5"
+              width="18"
+              height="14"
+              rx="3"
+              stroke="currentColor"
+              strokeWidth="1.8"
+            />
+            <path
+              d="M4 7L12 13L20 7"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
         </div>
 
-        {message && (
-          <div className="forgot-success">
-            {message}
-          </div>
-        )}
-
-        {error && (
-          <div className="forgot-error">
-            {error}
-          </div>
-        )}
+        <h1>Forgot password?</h1>
+        <p className="forgot-description">
+          Enter the email address associated with your Learnix account.
+          If the account is eligible, we’ll send you a 6-digit reset code.
+        </p>
 
         <form onSubmit={handleSubmit}>
-          <label htmlFor="forgot-email">
-            Email address
-          </label>
+          <label htmlFor="forgot-email">Email address</label>
 
           <input
             id="forgot-email"
+            name="email"
             type="email"
+            placeholder="you@example.com"
             value={email}
-            onChange={(event) =>
-              setEmail(event.target.value)
-            }
-            placeholder="Enter your email"
+            onChange={(event) => setEmail(event.target.value)}
             autoComplete="email"
             required
+            disabled={loading}
           />
+
+          {error && (
+            <p className="forgot-message forgot-error" role="alert">
+              {error}
+            </p>
+          )}
+
+          {success && (
+            <p className="forgot-message forgot-success" role="status">
+              {success}
+            </p>
+          )}
 
           <button
             type="submit"
+            className="forgot-submit"
             disabled={loading}
           >
-            {loading
-              ? "Sending..."
-              : "Send reset link"}
+            {loading ? "Sending code..." : "Send reset code"}
           </button>
         </form>
 
-        <Link
-          to="/login"
-          className="forgot-back"
-        >
-          Back to login
+        <Link to="/login" className="forgot-back-link">
+          <span aria-hidden="true">←</span> Back to login
         </Link>
       </section>
     </main>
   );
 }
+

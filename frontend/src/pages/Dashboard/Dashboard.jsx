@@ -6,10 +6,7 @@ const API_URL =
   import.meta.env.VITE_API_URL || "http://localhost:8000/api";
 
 function getToken() {
-  return (
-    localStorage.getItem("access_token") ||
-    localStorage.getItem("token")
-  );
+  return localStorage.getItem("learnix_token");
 }
 
 async function apiRequest(endpoint) {

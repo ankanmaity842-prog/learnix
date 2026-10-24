@@ -1,3 +1,4 @@
+
 import api from "./api";
 
 const LEVEL_LIMITS = {
@@ -6,19 +7,32 @@ const LEVEL_LIMITS = {
   advanced: 12,
 };
 
+const DEFAULT_LANGUAGE = "en";
+const DEFAULT_LEVEL = "beginner";
+
+function buildParams(params = {}) {
+  const level = LEVEL_LIMITS[params.level]
+    ? params.level
+    : DEFAULT_LEVEL;
+
+  return {
+    language: params.language || DEFAULT_LANGUAGE,
+    level,
+    limit: params.limit ?? LEVEL_LIMITS[level],
+    ...params,
+    // Keep the validated defaults when callers omit these fields.
+    language: params.language || DEFAULT_LANGUAGE,
+    level,
+    limit: params.limit ?? LEVEL_LIMITS[level],
+  };
+}
+
 const recommendationService = {
   async getForTopic(topic, params = {}) {
-    const level = params.level || "beginner";
-
     const response = await api.get(
       `/recommendations/for-topic/${encodeURIComponent(topic)}`,
       {
-        params: {
-          language: "en",
-          level,
-          limit: LEVEL_LIMITS[level] || 30,
-          ...params,
-        },
+        params: buildParams(params),
       }
     );
 
@@ -26,13 +40,13 @@ const recommendationService = {
   },
 
   async getRecommendations(params = {}) {
-    const level = params.level || "beginner";
+    const requestParams = buildParams(params);
 
     const response = await api.post("/recommendations/", {
       topic: params.topic,
-      language: params.language || "en",
-      level,
-      limit: params.limit ?? LEVEL_LIMITS[level] ?? 30,
+      language: requestParams.language,
+      level: requestParams.level,
+      limit: requestParams.limit,
     });
 
     return response.data;
@@ -42,8 +56,7 @@ const recommendationService = {
     const response = await api.get("/recommendations/channels", {
       params: {
         query,
-        language: "en",
-        ...params,
+        language: params.language || DEFAULT_LANGUAGE,
       },
     });
 
@@ -51,17 +64,12 @@ const recommendationService = {
   },
 
   async getForChannel(channelId, topic, params = {}) {
-    const level = params.level || "beginner";
-
     const response = await api.get(
       `/recommendations/channel/${encodeURIComponent(channelId)}`,
       {
         params: {
           topic,
-          language: "en",
-          level,
-          limit: LEVEL_LIMITS[level] || 30,
-          ...params,
+          ...buildParams(params),
         },
       }
     );

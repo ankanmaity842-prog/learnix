@@ -1,3 +1,4 @@
+
 import { Routes, Route } from "react-router-dom";
 
 import Navbar from "./components/Navbar/Navbar";
@@ -7,7 +8,6 @@ import Home from "./pages/Home/Home";
 import Login from "./pages/Login/Login";
 import Register from "./pages/Register/Register";
 import Search from "./pages/Search/Search";
-
 import OAuthCallback from "./pages/OAuthCallback/OAuthCallback";
 
 import Dashboard from "./pages/Dashboard/Dashboard";
@@ -29,81 +29,31 @@ function App() {
       <Navbar />
 
       <Routes>
-        <Route
-          path="/"
-          element={<Home />}
-        />
+        <Route path="/" element={<Home />} />
+        <Route path="/search" element={<Search />} />
 
-        <Route
-          path="/search"
-          element={<Search />}
-        />
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+        <Route path="/oauth/callback" element={<OAuthCallback />} />
 
-        <Route
-          path="/login"
-          element={<Login />}
-        />
-
-        <Route
-          path="/register"
-          element={<Register />}
-        />
-
-        <Route
-          path="/oauth/callback"
-          element={<OAuthCallback />}
-        />
-
-        <Route
-          path="/forgot-password"
-          element={<ForgotPassword />}
-        />
-
-        <Route
-          path="/reset-password"
-          element={<ResetPassword />}
-        />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
 
         <Route element={<ProtectedRoute />}>
-          <Route
-            path="/dashboard"
-            element={<Dashboard />}
-          />
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/video/:videoId" element={<VideoLearning />} />
+          <Route path="/notes" element={<Notes />} />
 
-          <Route
-            path="/video/:videoId"
-            element={<VideoLearning />}
-          />
+          {/* Quiz landing page */}
+          <Route path="/quiz" element={<QuizPage />} />
 
-          <Route
-            path="/notes"
-            element={<Notes />}
-          />
+          {/* Quiz for a specific learning session */}
+          <Route path="/quiz/:quizId" element={<QuizPage />} />
 
-          <Route
-            path="/quiz/:quizId"
-            element={<QuizPage />}
-          />
-
-          <Route
-            path="/learning-path"
-            element={<LearningPathPage />}
-          />
-
-          <Route
-            path="/knowledge"
-            element={<KnowledgePage />}
-          />
-
-          <Route
-            path="/profile"
-            element={<Profile />}
-          />
-
-          <Route
-            path="/settings"
-            element={<Settings />}
-          />
+          <Route path="/learning-path" element={<LearningPathPage />} />
+          <Route path="/knowledge" element={<KnowledgePage />} />
+          <Route path="/profile" element={<Profile />} />
+          <Route path="/settings" element={<Settings />} />
         </Route>
       </Routes>
     </>

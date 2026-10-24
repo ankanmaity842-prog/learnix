@@ -1,3 +1,4 @@
+
 import { useNavigate } from "react-router-dom";
 import DifficultyBadge from "../DifficultyBadge/DifficultyBadge";
 import "./VideoCard.css";
@@ -5,47 +6,88 @@ import "./VideoCard.css";
 function VideoCard({ video, onOpen }) {
   const navigate = useNavigate();
 
+  const videoId = video?.video_id || video?.id;
+
+  const title = video?.title || "Untitled lesson";
+  const description =
+    video?.description || "Open this lesson on YouTube to view its details.";
+
+  const difficulty = [
+    "beginner",
+    "intermediate",
+    "advanced",
+  ].includes(String(video?.difficulty || "").toLowerCase())
+    ? String(video.difficulty).toLowerCase()
+    : "beginner";
+
+  const youtubeUrl = videoId
+    ? `https://www.youtube.com/watch?v=${encodeURIComponent(videoId)}`
+    : null;
+
   const handleOpen = () => {
     if (onOpen) {
       onOpen(video);
       return;
     }
 
-    navigate(`/video/${video.video_id}`, {
-      state: { video },
+    if (!videoId) return;
+
+    navigate(`/video/${videoId}`, {
+      state: {
+        video: {
+          ...video,
+          video_id: videoId,
+          difficulty,
+        },
+      },
     });
+  };
+
+  const handleDescriptionClick = () => {
+    if (youtubeUrl) {
+      window.open(
+        youtubeUrl,
+        "_blank",
+        "noopener,noreferrer"
+      );
+    }
   };
 
   return (
     <article className="video-card">
-      <div className="video-thumbnail">
+      <button
+        type="button"
+        className="video-thumbnail"
+        onClick={handleOpen}
+        aria-label={`Start learning: ${title}`}
+      >
         <img
           src={
-            video.thumbnail ||
-            `https://i.ytimg.com/vi/${video.video_id}/hqdefault.jpg`
+            video?.thumbnail ||
+            (videoId
+              ? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`
+              : "")
           }
-          alt={video.title}
+          alt={title}
           loading="lazy"
         />
 
         <span className="video-duration">
-          {video.duration || "Lesson"}
+          {video?.duration || "Lesson"}
         </span>
-      </div>
+      </button>
 
       <div className="video-content">
-        <h3>{video.title}</h3>
+        <h3>{title}</h3>
 
         <p className="video-channel">
-          {video.channel || "Educational channel"}
+          {video?.channel || "Educational channel"}
         </p>
 
         <div className="video-meta">
-          <DifficultyBadge
-            level={video.difficulty || "beginner"}
-          />
+          <DifficultyBadge level={difficulty} />
 
-          {video.views ? (
+          {video?.views ? (
             <span>
               {Number(video.views).toLocaleString()} views
             </span>
@@ -53,8 +95,23 @@ function VideoCard({ video, onOpen }) {
         </div>
 
         <button
+          type="button"
+          className="video-description-link"
+          onClick={handleDescriptionClick}
+          disabled={!youtubeUrl}
+          title="Open the original video on YouTube"
+        >
+          {description}
+          <span className="description-action">
+            Watch on YouTube ↗
+          </span>
+        </button>
+
+        <button
+          type="button"
           className="watch-button"
           onClick={handleOpen}
+          disabled={!videoId}
         >
           Start learning
         </button>

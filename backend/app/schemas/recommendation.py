@@ -1,75 +1,67 @@
-from pydantic import BaseModel, Field
+
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, Field
+
+
+Language = Literal["en", "hi", "bn"]
+Level = Literal["beginner", "intermediate", "advanced"]
 
 
 class RecommendationResponse(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+        extra="ignore",
+    )
 
-    video_id: int | str
-
+    video_id: str | int
     title: str
 
     url: str | None = None
-
     description: str | None = None
-
     channel: str | None = None
-
     thumbnail: str | None = None
 
-    language: str = "en"
+    language: Language = "en"
 
-    views: int = 0
-
-    likes: int = 0
+    views: int = Field(default=0, ge=0)
+    likes: int = Field(default=0, ge=0)
 
     channel_country: str | None = None
-
     is_indian_creator: bool = False
 
-    difficulty: str | None = None
+    difficulty: Level | None = None
+    level_verified: bool = False
 
-    topic_relevance: float = 0.0
-
-    transcript_simplicity: float = 0.0
-
-    visual_simplicity: float = 0.0
-
-    explanation_structure: float = 0.0
+    topic_relevance: float = Field(default=0.0, ge=0.0, le=1.0)
+    transcript_simplicity: float = Field(default=0.0, ge=0.0, le=1.0)
+    visual_simplicity: float = Field(default=0.0, ge=0.0, le=1.0)
+    explanation_structure: float = Field(default=0.0, ge=0.0, le=1.0)
 
     personalization_score: float = Field(
         default=0.0,
         alias="user_match",
+        ge=0.0,
+        le=1.0,
     )
 
-    duration_score: float = 0.0
-
-    engagement_score: float = 0.0
+    duration_score: float = Field(default=0.0, ge=0.0, le=1.0)
+    engagement_score: float = Field(default=0.0, ge=0.0, le=1.0)
 
     final_score: float = Field(
         default=0.0,
         alias="recommendation_score",
+        ge=0.0,
+        le=1.0,
     )
 
     reason: str | None = None
 
-    model_config = {
-        "populate_by_name": True,
-    }
-
 
 class RecommendationRequest(BaseModel):
+    model_config = ConfigDict(extra="ignore")
 
-    topic: str = Field(
-        ...,
-        min_length=2,
-    )
-
-    language: str = "en"
-
-    level: str = "beginner"
-
-    # 20 by default, can request up to 30.
-    limit: int = Field(
-        default=20,
-        ge=1,
-        le=30,
-    )
+    topic: str = Field(..., min_length=2, max_length=200)
+    language: Language = "en"
+    level: Level = "beginner"
+    limit: int = Field(default=20, ge=1, le=30)

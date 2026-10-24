@@ -18,6 +18,7 @@ from app.models.learning_session import LearningSession
 from app.models.progress import Progress
 from app.models.quiz import Quiz
 from app.models.recommendation import Recommendation
+from app.models.search_history import SearchHistory
 
 
 # Alembic Config object

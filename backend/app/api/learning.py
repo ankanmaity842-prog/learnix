@@ -3,6 +3,8 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
+from app.models.search_history import SearchHistory
 
 from app.dependencies import get_current_user
 from app.database.connection import get_db
@@ -20,14 +22,14 @@ router = APIRouter(
 
 
 class StartLearningRequest(BaseModel):
-    topic: str = Field(
-        ...,
-        min_length=2,
-    )
-
+    topic: str = Field(..., min_length=2)
     video_id: str | None = None
-
     language: str = "en"
+
+    title: str | None = None
+    description: str | None = None
+    channel: str | None = None
+    thumbnail: str | None = None
 
 
 class LearningEventRequest(BaseModel):
@@ -87,30 +89,37 @@ async def start_learning(
     # Find video
     # -----------------------------------------------------
 
-    video = None
-
-    if data.video_id:
-        video = (
-            db.query(Video)
-            .filter(
-                Video.youtube_id == data.video_id
-            )
-            .first()
-        )
-
-        if not video:
+        if not data.video_id:
             raise HTTPException(
-                status_code=404,
-                detail="Video not found in database",
-            )
-
-    else:
-        # A learning session requires a video.
-        raise HTTPException(
             status_code=400,
             detail="video_id is required",
         )
 
+    video = (
+        db.query(Video)
+        .filter(Video.youtube_id == data.video_id)
+        .first()
+    )
+
+    if not video:
+        if not data.title:
+            raise HTTPException(
+                status_code=422,
+                detail="Video title is required for a new video",
+            )
+
+        video = Video(
+            youtube_id=data.video_id,
+            title=data.title,
+            description=data.description,
+            channel_name=data.channel,
+            url=f"https://www.youtube.com/watch?v={data.video_id}",
+            thumbnail=data.thumbnail,
+            language=data.language,
+        )
+
+        db.add(video)
+        db.flush()
     # -----------------------------------------------------
     # Create session
     # -----------------------------------------------------
@@ -376,4 +385,127 @@ async def learning_history(
             }
             for session in sessions
         ],
+    }
+
+# =========================================================
+# SAVE SEARCH HISTORY
+# =========================================================
+
+class SearchHistoryRequest(BaseModel):
+    topic: str = Field(..., min_length=1, max_length=255)
+
+
+@router.post("/search-history")
+async def save_search_history(
+    data: SearchHistoryRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    topic_name = data.topic.strip()
+
+    if not topic_name:
+        raise HTTPException(
+            status_code=422,
+            detail="Topic cannot be empty",
+        )
+
+    record = (
+        db.query(SearchHistory)
+        .filter(
+            SearchHistory.user_id == current_user.id,
+            SearchHistory.topic.ilike(topic_name),
+        )
+        .first()
+    )
+
+    now = datetime.utcnow()
+
+    if record:
+        record.searched_at = now
+        record.topic = topic_name
+    else:
+        record = SearchHistory(
+            user_id=current_user.id,
+            topic=topic_name,
+            searched_at=now,
+        )
+        db.add(record)
+
+    db.commit()
+
+    return {
+        "topic": record.topic,
+        "searched_at": record.searched_at,
+    }
+
+
+# =========================================================
+# EXPLORE HISTORY
+# =========================================================
+
+@router.get("/explore-history")
+async def get_explore_history(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    searches = (
+        db.query(SearchHistory)
+        .filter(SearchHistory.user_id == current_user.id)
+        .order_by(SearchHistory.searched_at.desc())
+        .limit(10)
+        .all()
+    )
+
+    sessions = (
+        db.query(LearningSession)
+        .options(
+            joinedload(LearningSession.video),
+            joinedload(LearningSession.topic),
+        )
+        .filter(LearningSession.user_id == current_user.id)
+        .order_by(LearningSession.started_at.desc())
+        .limit(50)
+        .all()
+    )
+
+    videos = []
+    seen_video_ids = set()
+
+    for session in sessions:
+        video = session.video
+
+        if not video or video.youtube_id in seen_video_ids:
+            continue
+
+        seen_video_ids.add(video.youtube_id)
+
+        videos.append({
+            "video_id": video.youtube_id,
+            "title": video.title,
+            "description": video.description or "",
+            "channel": video.channel_name or "Educational channel",
+            "thumbnail": video.thumbnail,
+            "language": video.language,
+            "topic": (
+                session.topic.name
+                if session.topic
+                else "Previously watched"
+            ),
+            "watch_percentage": session.watch_percentage,
+            "watch_time_seconds": session.watch_time_seconds,
+            "started_at": session.started_at,
+        })
+
+        if len(videos) == 10:
+            break
+
+    return {
+        "recent_searches": [
+            {
+                "topic": item.topic,
+                "searched_at": item.searched_at,
+            }
+            for item in searches
+        ],
+        "recent_videos": videos,
     }

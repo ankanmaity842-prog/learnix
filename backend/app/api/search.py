@@ -1,3 +1,4 @@
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
@@ -8,7 +9,14 @@ from app.ai.knowledge_graph import knowledge_graph
 from app.services.transcript_service import transcript_service
 from app.services.recommendation_service import recommendation_service
 
-router = APIRouter(prefix="/search", tags=["Search"])
+
+router = APIRouter(
+    prefix="/search",
+    tags=["Search"],
+)
+
+VALID_LANGUAGES = {"en", "bn", "hi"}
+VALID_LEVELS = {"beginner", "intermediate", "advanced"}
 
 
 @router.get("/")
@@ -19,27 +27,6 @@ async def search_topics(
     limit: int = Query(10, ge=1, le=50),
     db: Session = Depends(get_db),
 ):
-    """
-    Search educational content using the dynamic learning pipeline.
-
-    Flow:
-        Query
-          ↓
-        Language
-          ↓
-        Topic understanding
-          ↓
-        Prerequisites / Knowledge Graph
-          ↓
-        YouTube search
-          ↓
-        Transcript extraction
-          ↓
-        Video feature analysis
-          ↓
-        Personalized ranking
-    """
-
     query = q.strip()
 
     if not query:
@@ -48,19 +35,29 @@ async def search_topics(
             detail="Search query cannot be empty",
         )
 
-    if language not in {"en", "bn", "hi"}:
+    if language not in VALID_LANGUAGES:
         raise HTTPException(
             status_code=400,
             detail="Unsupported language. Use en, bn, or hi.",
+        )
+
+    if level not in VALID_LEVELS:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Unsupported level. Use beginner, "
+                "intermediate, or advanced."
+            ),
         )
 
     try:
         topic_info = await topic_classifier.classify(
             text=query,
             language=language,
+            level=level,
         )
 
-        topic = topic_info["topic"]
+        topic = topic_info.get("topic") or query
         prerequisites = topic_info.get("prerequisites", [])
         subtopics = topic_info.get("subtopics", [])
         related_topics = topic_info.get("related_topics", [])
@@ -72,36 +69,58 @@ async def search_topics(
             related_topics=related_topics,
         )
 
-        search_queries = topic_info.get("search_queries", [query])
+        search_queries = topic_info.get("search_queries") or [query]
 
-        videos = []
+        # Search a bounded number of queries to control API quota.
+        unique_videos = {}
 
         for search_query in search_queries[:3]:
             results = await youtube_service.search_videos(
                 query=search_query,
                 language=language,
-                limit=limit,
+                limit=min(limit, 50),
+                max_pages=1,
+                educational_only=True,
+                level=level,
             )
 
-            videos.extend(results)
+            for video in results:
+                video_id = video.get("video_id") or video.get("id")
 
-            if len(videos) >= limit:
+                if video_id:
+                    unique_videos[video_id] = video
+
+            if len(unique_videos) >= limit:
                 break
 
-        unique_videos = {}
+        videos = list(unique_videos.values())
 
-        for video in videos:
-            video_id = video.get("video_id") or video.get("id")
-
-            if video_id and video_id not in unique_videos:
-                unique_videos[video_id] = video
-
-        videos = list(unique_videos.values())[:limit]
+        # Retrieve full descriptions and metadata before filtering.
+        videos = await youtube_service.enrich_search_results(videos)
 
         enriched_videos = []
 
         for video in videos:
             video_id = video.get("video_id") or video.get("id")
+
+            if not video_id:
+                continue
+
+            text = " ".join(
+                [
+                    str(video.get("title", "")),
+                    str(video.get("description", "")),
+                ]
+            )
+
+            if youtube_service.is_entertainment(text):
+                continue
+
+            if recommendation_service._topic_relevance(
+                video,
+                topic,
+            ) < 0.20:
+                continue
 
             transcript = ""
 
@@ -112,16 +131,27 @@ async def search_topics(
             except Exception:
                 transcript = ""
 
-            enriched_videos.append({
-                **video,
-                "transcript_available": bool(transcript),
-                "transcript": transcript,
-            })
+            enriched_videos.append(
+                {
+                    **video,
+                    "video_id": video_id,
+                    "transcript_available": bool(transcript),
+                    "transcript": transcript,
+                    "language": language,
+                }
+            )
 
-        recommendations = recommendation_service.rank_videos(
+        ranked = recommendation_service.rank_videos(
             videos=enriched_videos,
             topic=topic,
             learner_level=level,
+            preferred_language=language,
+        )
+
+        recommendations = recommendation_service.select_level_videos(
+            videos=ranked,
+            level=level,
+            limit=limit,
         )
 
         return {
@@ -130,16 +160,16 @@ async def search_topics(
             "level": level,
             "topic": topic,
             "domain": topic_info.get("domain", "General"),
-            "difficulty": topic_info.get(
-                "difficulty",
-                "intermediate",
-            ),
+            "difficulty": level,
             "subtopics": subtopics,
             "prerequisites": prerequisites,
             "related_topics": related_topics,
             "learning_path": knowledge_graph.get_learning_path(topic),
             "recommendations": recommendations,
         }
+
+    except HTTPException:
+        raise
 
     except Exception as exc:
         raise HTTPException(

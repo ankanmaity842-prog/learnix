@@ -1,233 +1,317 @@
+
 import { useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
-
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import axios from "axios";
 import "./ResetPassword.css";
-import api from "../../services/api";
 
-function EyeIcon({ visible }) {
-  return visible ? (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path
-        d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.8"
-      />
-      <circle
-        cx="12"
-        cy="12"
-        r="2.8"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.8"
-      />
-    </svg>
-  ) : (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path
-        d="M3 3l18 18"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-      />
-      <path
-        d="M10.6 6.2A9.7 9.7 0 0 1 12 6c6.5 0 10 6 10 6a18 18 0 0 1-3.1 3.4M6.3 6.9C3.6 8.5 2 12 2 12s3.5 6 10 6c1 0 1.9-.1 2.7-.4"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
+const API_URL = (
+  import.meta.env.VITE_API_URL || "http://localhost:8000"
+).replace(/\/$/, "");
 
 export default function ResetPassword() {
-  const [searchParams] = useSearchParams();
+  const location = useLocation();
   const navigate = useNavigate();
 
-  const token = searchParams.get("token");
-
+  const [email, setEmail] = useState(
+    location.state?.email || ""
+  );
+  const [challengeToken, setChallengeToken] = useState(
+    location.state?.challengeToken || ""
+  );
+  const [code, setCode] = useState("");
   const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] =
-    useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
 
-  const [showPassword, setShowPassword] =
-    useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] =
-    useState(false);
-
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [resending, setResending] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
+  const handleCodeChange = (event) => {
+    const digits = event.target.value.replace(/\D/g, "").slice(0, 6);
+    setCode(digits);
+  };
+
   const handleSubmit = async (event) => {
     event.preventDefault();
-
     setError("");
     setSuccess("");
 
-    if (!token) {
-      setError("Invalid or missing password reset token.");
+    if (!email || !challengeToken) {
+      setError(
+        "Your reset session is missing or expired. Please request a new code."
+      );
+      return;
+    }
+
+    if (!/^\d{6}$/.test(code)) {
+      setError("Enter the complete 6-digit verification code.");
+      return;
+    }
+
+    if (password.length < 8) {
+      setError("Your new password must contain at least 8 characters.");
       return;
     }
 
     if (password !== confirmPassword) {
-      setError("Passwords do not match.");
+      setError("The passwords do not match.");
       return;
     }
 
-    setLoading(true);
-
     try {
-      const response = await api.post(
-        "/auth/reset-password",
+      setLoading(true);
+
+      const response = await axios.post(
+        `${API_URL}/auth/reset-password`,
         {
-          token,
+          email: email.trim().toLowerCase(),
+          code,
+          challenge_token: challengeToken,
           password,
+          confirm_password: confirmPassword,
         }
       );
 
       setSuccess(
         response.data?.message ||
-          "Password changed successfully."
+          "Your password has been reset successfully."
       );
 
-      setTimeout(() => {
-        navigate("/login");
+      setCode("");
+      setPassword("");
+      setConfirmPassword("");
+
+      // Allow the success message to be read before navigating.
+      window.setTimeout(() => {
+        navigate("/login", { replace: true });
       }, 1500);
     } catch (err) {
       setError(
         err.response?.data?.detail ||
-          "Unable to reset your password."
+          "Unable to reset your password. Check your code and try again."
       );
     } finally {
       setLoading(false);
     }
   };
 
+  const handleResend = async () => {
+    setError("");
+    setSuccess("");
+
+    if (!email.trim()) {
+      setError("Please return to the previous page and enter your email.");
+      return;
+    }
+
+    try {
+      setResending(true);
+
+      const response = await axios.post(
+        `${API_URL}/auth/forgot-password`,
+        { email: email.trim().toLowerCase() }
+      );
+
+      if (response.data?.challenge_token) {
+        setChallengeToken(response.data.challenge_token);
+        setCode("");
+        setSuccess("A new code has been requested. Check your email.");
+      } else {
+        setSuccess(
+          response.data?.message ||
+            "If the account is eligible, a new code will be sent."
+        );
+      }
+    } catch (err) {
+      setError(
+        err.response?.data?.detail ||
+          "Unable to request a new code. Please try again."
+      );
+    } finally {
+      setResending(false);
+    }
+  };
+
+  if (!email || !challengeToken) {
+    return (
+      <main className="reset-page">
+        <section className="reset-card">
+          <h1>Reset your password</h1>
+          <p className="reset-description">
+            Request a reset code first to begin changing your password.
+          </p>
+          <Link to="/forgot-password" className="reset-login-button">
+            Request a reset code
+          </Link>
+          <Link to="/login" className="reset-back-link">
+            Back to login
+          </Link>
+        </section>
+      </main>
+    );
+  }
+
   return (
     <main className="reset-page">
       <section className="reset-card">
-        <div className="reset-logo">L</div>
-
-        <div className="reset-header">
-          <h1>Create a new password</h1>
-
-          <p>
-            Choose a strong password for your Learnix
-            account.
-          </p>
+        <div className="reset-icon" aria-hidden="true">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <rect
+              x="4"
+              y="10"
+              width="16"
+              height="11"
+              rx="2.5"
+              stroke="currentColor"
+              strokeWidth="1.8"
+            />
+            <path
+              d="M8 10V7a4 4 0 0 1 8 0v3"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+            />
+            <circle cx="12" cy="15" r="1.2" fill="currentColor" />
+          </svg>
         </div>
 
-        {error && (
-          <div className="reset-error">
-            {error}
-          </div>
-        )}
+        <h1>Create a new password</h1>
 
-        {success && (
-          <div className="reset-success">
-            {success}
-          </div>
-        )}
+        <p className="reset-description">
+          Enter the 6-digit code sent to{" "}
+          <strong className="reset-email">{email}</strong>, then choose
+          your new password.
+        </p>
 
-        <form onSubmit={handleSubmit}>
-          <label htmlFor="reset-password">
-            New password
-          </label>
+        <form className="reset-form" onSubmit={handleSubmit}>
+          <label htmlFor="reset-code">Verification code</label>
+          <input
+            id="reset-code"
+            className="reset-code-input"
+            name="code"
+            type="text"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            placeholder="000000"
+            value={code}
+            onChange={handleCodeChange}
+            maxLength={6}
+            pattern="[0-9]{6}"
+            aria-describedby="reset-code-help"
+            required
+            disabled={loading}
+          />
 
-          <div className="reset-password-wrapper">
-            <input
-              id="reset-password"
-              type={showPassword ? "text" : "password"}
-              value={password}
-              onChange={(event) =>
-                setPassword(event.target.value)
-              }
-              placeholder="Enter new password"
-              autoComplete="new-password"
-              minLength={6}
-              required
-            />
+          <p id="reset-code-help" className="reset-field-help">
+            Enter the 6-digit code from your email.
+          </p>
 
-            <button
-              type="button"
-              className="reset-password-toggle"
-              onClick={() =>
-                setShowPassword((value) => !value)
-              }
-              aria-label={
-                showPassword
-                  ? "Hide password"
-                  : "Show password"
-              }
-            >
-              <EyeIcon visible={showPassword} />
-            </button>
-          </div>
-
-          <label htmlFor="reset-confirm-password">
-            Confirm password
-          </label>
-
-          <div className="reset-password-wrapper">
-            <input
-              id="reset-confirm-password"
-              type={
-                showConfirmPassword
-                  ? "text"
-                  : "password"
-              }
-              value={confirmPassword}
-              onChange={(event) =>
-                setConfirmPassword(event.target.value)
-              }
-              placeholder="Confirm new password"
-              autoComplete="new-password"
-              minLength={6}
-              required
-            />
-
-            <button
-              type="button"
-              className="reset-password-toggle"
-              onClick={() =>
-                setShowConfirmPassword(
-                  (value) => !value
-                )
-              }
-              aria-label={
-                showConfirmPassword
-                  ? "Hide confirm password"
-                  : "Show confirm password"
-              }
-            >
-              <EyeIcon
-                visible={showConfirmPassword}
+          <div className="reset-password-field">
+            <label htmlFor="reset-password">New password</label>
+            <div className="reset-password-wrapper">
+              <input
+                id="reset-password"
+                name="password"
+                type={showPassword ? "text" : "password"}
+                placeholder="At least 8 characters"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                autoComplete="new-password"
+                minLength={8}
+                required
+                disabled={loading}
               />
-            </button>
+              <button
+                type="button"
+                className="reset-eye-button"
+                onClick={() => setShowPassword((visible) => !visible)}
+                aria-label={showPassword ? "Hide password" : "Show password"}
+                aria-pressed={showPassword}
+              >
+                {showPassword ? "Hide" : "Show"}
+              </button>
+            </div>
           </div>
+
+          <div className="reset-password-field">
+            <label htmlFor="reset-confirm-password">
+              Confirm new password
+            </label>
+            <div className="reset-password-wrapper">
+              <input
+                id="reset-confirm-password"
+                name="confirmPassword"
+                type={showConfirmPassword ? "text" : "password"}
+                placeholder="Re-enter your password"
+                value={confirmPassword}
+                onChange={(event) => setConfirmPassword(event.target.value)}
+                autoComplete="new-password"
+                minLength={8}
+                required
+                disabled={loading}
+              />
+              <button
+                type="button"
+                className="reset-eye-button"
+                onClick={() =>
+                  setShowConfirmPassword((visible) => !visible)
+                }
+                aria-label={
+                  showConfirmPassword
+                    ? "Hide confirm password"
+                    : "Show confirm password"
+                }
+                aria-pressed={showConfirmPassword}
+              >
+                {showConfirmPassword ? "Hide" : "Show"}
+              </button>
+            </div>
+          </div>
+
+          {error && (
+            <p className="reset-message reset-error" role="alert">
+              {error}
+            </p>
+          )}
+
+          {success && (
+            <p className="reset-message reset-success" role="status">
+              {success}
+            </p>
+          )}
 
           <button
             type="submit"
             className="reset-submit"
-            disabled={loading || !token}
+            disabled={loading || resending}
           >
-            {loading
-              ? "Updating..."
-              : "Update password"}
+            {loading ? "Resetting password..." : "Reset password"}
           </button>
         </form>
 
-        <Link
-          to="/login"
-          className="reset-back"
-        >
+        <div className="reset-resend">
+          <span>Didn't receive the code?</span>
+          <button
+            type="button"
+            onClick={handleResend}
+            disabled={resending || loading}
+          >
+            {resending ? "Requesting..." : "Send a new code"}
+          </button>
+        </div>
+
+        <Link to="/login" className="reset-back-link">
           Back to login
         </Link>
       </section>
     </main>
   );
 }
+

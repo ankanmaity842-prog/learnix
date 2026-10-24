@@ -1,3 +1,5 @@
+
+import logging
 import re
 from typing import Literal
 
@@ -9,6 +11,7 @@ from app.ai.topic_classifier import topic_classifier
 from app.services.youtube_service import youtube_service
 from app.services.recommendation_service import recommendation_service
 
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/recommendations",
@@ -20,18 +23,22 @@ Level = Literal["beginner", "intermediate", "advanced"]
 
 
 class RecommendationRequest(BaseModel):
-    topic: str = Field(..., min_length=2)
+    topic: str = Field(..., min_length=2, max_length=200)
     language: Language = "en"
     level: Level = "beginner"
-    limit: int | None = None
+    limit: int | None = Field(default=None, ge=1, le=50)
 
 
-def get_level_limit(level: str, requested_limit: int | None) -> int:
+def get_level_limit(
+    level: str,
+    requested_limit: int | None,
+) -> int:
     ranges = {
-        "beginner": (30, 30, 30),
-        "intermediate": (25, 20, 30),
-        "advanced": (12, 10, 15),
+        "beginner": (30, 1, 30),
+        "intermediate": (25, 1, 30),
+        "advanced": (12, 1, 15),
     }
+
     default, minimum, maximum = ranges[level]
 
     if requested_limit is None:
@@ -41,14 +48,7 @@ def get_level_limit(level: str, requested_limit: int | None) -> int:
 
 
 def _script_matches(video: dict, language: str) -> bool:
-    """
-    Conservative title/description script filter.
-    This is NOT proof of spoken language; transcript verification
-    is needed for a true spoken-language guarantee.
-    """
-    if language == "en":
-        return True
-
+    """Detect script presence; not a reliable speech-language detector."""
     text = " ".join([
         str(video.get("title", "")),
         str(video.get("description", "")),
@@ -60,7 +60,19 @@ def _script_matches(video: dict, language: str) -> bool:
     if language == "bn":
         return bool(re.search(r"[\u0980-\u09FF]", text))
 
-    return False
+    return True
+
+
+def _safe_learning_path(topic: str) -> list:
+    try:
+        result = knowledge_graph.get_learning_path(topic)
+        return result if isinstance(result, list) else []
+    except Exception:
+        logger.exception(
+            "Could not create learning path for %r",
+            topic,
+        )
+        return []
 
 
 async def build_recommendations(
@@ -70,112 +82,257 @@ async def build_recommendations(
     limit: int | None,
     channel_id: str | None = None,
 ):
+    topic = str(topic or "").strip()
+    channel_id = str(channel_id or "").strip() or None
+
+    if not topic:
+        raise HTTPException(
+            status_code=400,
+            detail="Topic cannot be empty",
+        )
+
     final_limit = get_level_limit(level, limit)
 
-    topic_info = await topic_classifier.classify(
-        text=topic,
-        language=language,
-        level=level,
+    logger.info(
+        "Building recommendations: topic=%r language=%s "
+        "level=%s limit=%d channel_filter=%s",
+        topic,
+        language,
+        level,
+        final_limit,
+        channel_id or "none",
     )
-    resolved_topic = topic_info.get("topic") or topic
 
-    knowledge_graph.add_topic(
-        topic=resolved_topic,
-        prerequisites=topic_info.get("prerequisites", []),
-        subtopics=topic_info.get("subtopics", []),
-        related_topics=topic_info.get("related_topics", []),
+    try:
+        topic_info = await topic_classifier.classify(
+            text=topic,
+            language=language,
+            level=level,
+        )
+        if not isinstance(topic_info, dict):
+            topic_info = {}
+    except Exception:
+        logger.exception("Topic classification failed for %r", topic)
+        topic_info = {}
+
+    resolved_topic = (
+        str(topic_info.get("topic") or topic).strip() or topic
     )
+
+    try:
+        knowledge_graph.add_topic(
+            topic=resolved_topic,
+            prerequisites=topic_info.get("prerequisites", []),
+            subtopics=topic_info.get("subtopics", []),
+            related_topics=topic_info.get("related_topics", []),
+        )
+    except Exception:
+        logger.exception(
+            "Knowledge graph update failed for topic %r",
+            resolved_topic,
+        )
 
     level_terms = {
         "beginner": "beginner basics fundamentals from scratch",
         "intermediate": "intermediate practical examples projects",
         "advanced": "advanced deep dive architecture optimization",
     }
+
     language_terms = {
-        "en": "English educational tutorial",
-        "hi": "Hindi हिंदी शैक्षिक ट्यूटोरियल",
-        "bn": "Bengali বাংলা শিক্ষামূলক টিউটোরিয়াল",
+        "en": "English",
+        "hi": "Hindi हिंदी",
+        "bn": "Bengali বাংলা",
     }
 
-    base_query = (
-        f"{resolved_topic} "
-        f"{level_terms[level]} "
-        f"{language_terms[language]}"
-    )
+    # Start with the broad query first; more specific queries may return
+    # fewer results. Deduplication below removes repeated videos.
+    queries = [
+        f"{resolved_topic} tutorial",
+        f"{resolved_topic} {level_terms[level]}",
+        f"{resolved_topic} tutorial {language_terms[language]}",
+    ]
 
-    # Keep the search bounded to reduce YouTube API quota use.
-    queries = [base_query]
-    if not channel_id:
-        for item in topic_info.get("search_queries", []):
-            if len(queries) >= 3:
+    extra_queries = topic_info.get("search_queries", [])
+    if isinstance(extra_queries, list):
+        for item in extra_queries:
+            if len(queries) >= 5:
                 break
-            if item and item.strip():
-                query = (
-                    f"{resolved_topic} {item.strip()} "
-                    f"{level_terms[level]} {language_terms[language]}"
-                )
-                if query not in queries:
-                    queries.append(query)
 
-    candidates = {}
+            if isinstance(item, str) and item.strip():
+                candidate = (
+                    f"{resolved_topic} {item.strip()} "
+                    f"{language_terms[language]}"
+                )
+
+                if candidate not in queries:
+                    queries.append(candidate)
+
+    candidates: dict[str, dict] = {}
+
     for search_query in queries:
-        results = await youtube_service.search_videos(
-            query=search_query,
-            language=language,
-            limit=50,
-            max_pages=2,
-            educational_only=True,
-            channel_id=channel_id,
+        try:
+            results = await youtube_service.search_videos(
+                query=search_query,
+                language=language,
+                limit=50,
+                max_pages=2,
+                educational_only=True,
+                channel_id=channel_id,
+                level=level,
+            )
+        except Exception:
+            logger.exception(
+                "YouTube search raised an exception for query=%r",
+                search_query,
+            )
+            continue
+
+        logger.info(
+            "Recommendation query completed: query=%r results=%d",
+            search_query,
+            len(results or []),
         )
 
-        for video in results:
-            video_id = video.get("video_id")
-            if video_id:
-                candidates[video_id] = video
+        for video in results or []:
+            video_id = str(
+                video.get("video_id") or video.get("id") or ""
+            ).strip()
 
-    videos = await youtube_service.enrich_search_results(
-        list(candidates.values())
+            if not video_id:
+                logger.warning(
+                    "Skipping YouTube result without video ID: %r",
+                    video.get("title"),
+                )
+                continue
+
+            result_channel_id = str(
+                video.get("channel_id") or ""
+            ).strip()
+
+            # Only enforce channel filtering when a channel was requested.
+            if channel_id and result_channel_id != channel_id:
+                continue
+
+            candidates[video_id] = {
+                **video,
+                "video_id": video_id,
+                "channel_id": result_channel_id,
+            }
+
+    logger.info(
+        "Recommendation candidates: topic=%r channel_filter=%s count=%d",
+        resolved_topic,
+        channel_id or "none",
+        len(candidates),
     )
 
+    if not candidates:
+        return {
+            "topic": resolved_topic,
+            "domain": topic_info.get("domain", "General"),
+            "language": language,
+            "level": level,
+            "requested_count": final_limit,
+            "returned_count": 0,
+            "difficulty": level,
+            "prerequisites": topic_info.get("prerequisites", []),
+            "learning_path": _safe_learning_path(resolved_topic),
+            # None is expected for general topic searches.
+            "channel_id": channel_id,
+            "recommendations": [],
+            "message": (
+                "YouTube search returned no usable videos. Check the "
+                "YouTube search logs for API errors, empty API results, "
+                "or results removed by the title filter."
+            ),
+        }
+
+    try:
+        enriched = await youtube_service.enrich_search_results(
+            list(candidates.values())
+        )
+        videos = enriched or list(candidates.values())
+    except Exception:
+        logger.exception("YouTube result enrichment failed")
+        videos = list(candidates.values())
+
     filtered = []
+
     for video in videos:
-        text = " ".join([
-            str(video.get("title", "")),
-            str(video.get("description", "")),
-        ])
+        video_id = str(
+            video.get("video_id") or video.get("id") or ""
+        ).strip()
 
-        if youtube_service.is_entertainment(text):
+        if not video_id:
             continue
 
-        # Avoid cross-topic spillover where the title/description
-        # has no meaningful overlap with the requested topic.
-        if recommendation_service._topic_relevance(
-            video, resolved_topic
-        ) < 0.20:
+        result_channel_id = str(
+            video.get("channel_id") or ""
+        ).strip()
+
+        if channel_id and result_channel_id != channel_id:
             continue
 
-        # For Hindi/Bengali, conservatively reject results without
-        # the corresponding script. This is a preliminary filter,
-        # not a substitute for checking actual transcript language.
-        if language in {"hi", "bn"} and not _script_matches(
-            video, language
-        ):
-            continue
-
+        video["video_id"] = video_id
+        video["channel_id"] = result_channel_id
         video["language"] = language
         filtered.append(video)
 
-    ranked = recommendation_service.rank_videos(
-        videos=filtered,
-        topic=resolved_topic,
-        learner_level=level,
-        preferred_language=language,
+    logger.info(
+        "Recommendation post-enrichment: candidates=%d usable=%d "
+        "channel_filter=%s",
+        len(candidates),
+        len(filtered),
+        channel_id or "none",
     )
 
-    selected = recommendation_service.select_level_videos(
-        videos=ranked,
-        level=level,
-        limit=final_limit,
+    try:
+        ranked = recommendation_service.rank_videos(
+            videos=filtered,
+            topic=resolved_topic,
+            learner_level=level,
+            preferred_language=language,
+        )
+        ranked = ranked or []
+    except Exception:
+        logger.exception("Recommendation ranking failed")
+        ranked = []
+
+    # Preserve usable search results if ranking rejects all candidates.
+    if not ranked:
+        logger.warning(
+            "Ranking returned no results for %r; using search candidates",
+            resolved_topic,
+        )
+        ranked = filtered
+
+    try:
+        selected = recommendation_service.select_level_videos(
+            videos=ranked,
+            level=level,
+            limit=final_limit,
+        )
+        selected = selected or []
+    except Exception:
+        logger.exception("Recommendation selection failed")
+        selected = ranked[:final_limit]
+
+    # If selection applies overly restrictive criteria, do not silently
+    # return zero when usable ranked results are available.
+    if not selected and ranked:
+        logger.warning(
+            "Level selection returned zero results; using ranked fallback"
+        )
+        selected = ranked[:final_limit]
+
+    logger.info(
+        "Recommendation completed: topic=%r candidates=%d "
+        "enriched=%d ranked=%d selected=%d",
+        resolved_topic,
+        len(candidates),
+        len(filtered),
+        len(ranked),
+        len(selected),
     )
 
     return {
@@ -187,9 +344,8 @@ async def build_recommendations(
         "returned_count": len(selected),
         "difficulty": level,
         "prerequisites": topic_info.get("prerequisites", []),
-        "learning_path": knowledge_graph.get_learning_path(
-            resolved_topic
-        ),
+        "learning_path": _safe_learning_path(resolved_topic),
+        # This is None for /for-topic/{topic}, unless explicitly supplied.
         "channel_id": channel_id,
         "recommendations": selected,
     }
@@ -197,11 +353,8 @@ async def build_recommendations(
 
 @router.post("/")
 async def get_recommendations(data: RecommendationRequest):
-    if not data.topic.strip():
-        raise HTTPException(status_code=400, detail="Topic cannot be empty")
-
     return await build_recommendations(
-        topic=data.topic.strip(),
+        topic=data.topic,
         language=data.language,
         level=data.level,
         limit=data.limit,
@@ -215,11 +368,8 @@ async def recommendations_for_topic(
     level: Level = "beginner",
     limit: int | None = Query(default=None, ge=1, le=50),
 ):
-    if not topic.strip():
-        raise HTTPException(status_code=400, detail="Topic cannot be empty")
-
     return await build_recommendations(
-        topic=topic.strip(),
+        topic=topic,
         language=language,
         level=level,
         limit=limit,
@@ -240,6 +390,7 @@ async def recommended_channels(
     return {
         "query": query,
         "language": language,
+        "returned_count": len(channels),
         "channels": channels,
     }
 
@@ -252,15 +403,20 @@ async def recommendations_for_channel(
     level: Level = "beginner",
     limit: int | None = Query(default=None, ge=1, le=50),
 ):
-    if not channel_id.strip():
-        raise HTTPException(status_code=400, detail="Channel ID is required")
+    channel_id = channel_id.strip()
+
+    if not channel_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Channel ID is required",
+        )
 
     return await build_recommendations(
-        topic=topic.strip(),
+        topic=topic,
         language=language,
         level=level,
         limit=limit,
-        channel_id=channel_id.strip(),
+        channel_id=channel_id,
     )
 
 
@@ -270,3 +426,6 @@ async def next_recommendation():
         "recommendation": None,
         "reason": "No learning history available",
     }
+
+
+

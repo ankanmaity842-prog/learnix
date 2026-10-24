@@ -1,4 +1,7 @@
+
 from typing import Any
+
+from youtube_transcript_api import YouTubeTranscriptApi
 
 
 class TranscriptService:
@@ -8,12 +11,7 @@ class TranscriptService:
         video_id: str,
         language: str = "en",
     ) -> dict[str, Any]:
-
         try:
-            from youtube_transcript_api import (
-                YouTubeTranscriptApi,
-            )
-
             api = YouTubeTranscriptApi()
 
             transcript = api.fetch(
@@ -24,55 +22,38 @@ class TranscriptService:
             segments = []
 
             for item in transcript:
-                text = getattr(
-                    item,
-                    "text",
-                    "",
-                )
-
-                start = getattr(
-                    item,
-                    "start",
-                    0.0,
-                )
-
-                duration = getattr(
-                    item,
-                    "duration",
-                    0.0,
-                )
+                text = getattr(item, "text", "").strip()
 
                 if not text:
                     continue
 
-                segments.append(
-                    {
-                        "text": text,
-                        "start": float(start),
-                        "duration": float(duration),
-                    }
-                )
+                segments.append({
+                    "text": text,
+                    "start": float(getattr(item, "start", 0)),
+                    "duration": float(getattr(item, "duration", 0)),
+                })
 
-            text = " ".join(
-                segment["text"]
-                for segment in segments
+            full_text = " ".join(
+                segment["text"] for segment in segments
             )
 
             return {
                 "video_id": video_id,
                 "language": language,
-                "text": text,
+                "text": full_text,
                 "segments": segments,
-                "available": bool(text.strip()),
+                "available": bool(full_text.strip()),
+                "error": None,
             }
 
-        except Exception:
+        except Exception as exc:
             return {
                 "video_id": video_id,
                 "language": language,
                 "text": "",
                 "segments": [],
                 "available": False,
+                "error": str(exc),
             }
 
 
