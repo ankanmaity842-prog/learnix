@@ -1,4 +1,3 @@
-
 import logging
 from difflib import SequenceMatcher
 from typing import Any
@@ -34,15 +33,84 @@ class YouTubeService:
 
     VALID_LEVELS = {"beginner", "intermediate", "advanced"}
 
+    # Successful results are cached to avoid repeating identical searches.
+    SEARCH_CACHE_TTL = 3600
+    CHANNEL_CACHE_TTL = 3600
+    DETAIL_CACHE_TTL = 1800
+
+    # Short circuit repeated searches after a quota error.
+    # This is a temporary circuit breaker, not an exact Google quota reset.
+    SEARCH_QUOTA_KEY = "youtube:search:quota_exhausted:v1"
+    SEARCH_QUOTA_TTL = 3600
+
     def __init__(self):
         self.api_key = settings.YOUTUBE_API_KEY
+
+    @staticmethod
+    def _is_search_quota_error(
+        status_code: int,
+        reason: str,
+        message: str,
+    ) -> bool:
+        text = f"{reason} {message}".casefold().replace("_", "")
+
+        return status_code in (403, 429) and any(
+            marker in text
+            for marker in (
+                "quotaexceeded",
+                "ratelimitexceeded",
+                "quota exceeded",
+                "daily limit",
+                "search queries per day",
+            )
+        )
+
+    @staticmethod
+    def _extract_api_error(
+        response: httpx.Response,
+    ) -> tuple[str, str]:
+        reason = "unknown"
+        message = response.text[:300]
+
+        try:
+            error_data = response.json().get("error", {})
+            errors = error_data.get("errors", [])
+
+            if errors:
+                reason = str(errors[0].get("reason", "unknown"))
+            else:
+                reason = str(error_data.get("status", "unknown"))
+
+            message = str(error_data.get("message", message))
+        except (ValueError, TypeError, AttributeError):
+            pass
+
+        return reason, message
+
+    def is_search_quota_exhausted(self) -> bool:
+        """Return whether the temporary quota circuit breaker is active."""
+        try:
+            return bool(cache.get(self.SEARCH_QUOTA_KEY))
+        except Exception:
+            logger.exception("Could not read YouTube quota state")
+            return False
+
+    def _mark_search_quota_exhausted(self) -> None:
+        try:
+            cache.set(
+                self.SEARCH_QUOTA_KEY,
+                True,
+                ttl=self.SEARCH_QUOTA_TTL,
+            )
+        except Exception:
+            logger.exception("Could not store YouTube quota state")
 
     async def search_videos(
         self,
         query: str,
         limit: int = 50,
         language: str = "en",
-        max_pages: int = 2,
+        max_pages: int = 1,
         educational_only: bool = True,
         channel_id: str | None = None,
         level: str | None = None,
@@ -68,34 +136,45 @@ class YouTubeService:
         limit = max(1, min(int(limit), 50))
         max_pages = max(1, min(int(max_pages), 5))
 
-        # Versioned cache key prevents older cached results from being reused.
         cache_key = (
-            f"youtube:search:v4:{query}:{limit}:{language}:"
-            f"{max_pages}:{educational_only}:{channel_id or 'all'}"
+            f"youtube:search:v5:{query.casefold()}:{limit}:{language}:"
+            f"{max_pages}:{educational_only}:"
+            f"{channel_id or 'all'}:{level or 'all'}"
         )
 
-        cached = cache.get(cache_key)
-        if cached is not None:
-            logger.info(
-                "YouTube search cache hit: query=%r count=%d",
-                query,
-                len(cached),
-            )
-            return cached
+        try:
+            cached = cache.get(cache_key)
+            if cached is not None:
+                logger.info(
+                    "YouTube search cache hit: query=%r count=%d",
+                    query,
+                    len(cached),
+                )
+                return cached
+        except Exception:
+            logger.exception("YouTube search cache read failed")
 
-        if not self.api_key:
-            logger.error(
-                "YOUTUBE_API_KEY is not configured; query=%r",
+        # Check cache first so previously fetched results can still be used
+        # while the live search quota is exhausted.
+        if self.is_search_quota_exhausted():
+            logger.warning(
+                "YouTube search skipped: quota circuit breaker active; "
+                "query=%r",
                 query,
             )
             return []
 
+        if not self.api_key:
+            logger.error("YOUTUBE_API_KEY is not configured")
+            return []
+
         logger.info(
             "YouTube search starting: query=%r language=%s "
-            "limit=%d channel_filter=%s",
+            "limit=%d pages=%d channel_filter=%s",
             query,
             language,
             limit,
+            max_pages,
             channel_id or "none",
         )
 
@@ -135,33 +214,26 @@ class YouTubeService:
                         data = response.json()
 
                     except httpx.HTTPStatusError as exc:
-                        api_reason = "unknown"
-                        api_message = exc.response.text[:500]
-
-                        try:
-                            error_data = exc.response.json().get(
-                                "error", {}
-                            )
-                            errors = error_data.get("errors", [])
-                            api_reason = (
-                                errors[0].get("reason", "unknown")
-                                if errors
-                                else error_data.get("status", "unknown")
-                            )
-                            api_message = error_data.get(
-                                "message", api_message
-                            )
-                        except (ValueError, TypeError, AttributeError):
-                            pass
+                        reason, message = self._extract_api_error(
+                            exc.response
+                        )
 
                         logger.error(
                             "YouTube search failed: status=%s "
                             "reason=%s query=%r message=%s",
                             exc.response.status_code,
-                            api_reason,
+                            reason,
                             query,
-                            api_message,
+                            message,
                         )
+
+                        if self._is_search_quota_error(
+                            exc.response.status_code,
+                            reason,
+                            message,
+                        ):
+                            self._mark_search_quota_exhausted()
+
                         failed = True
                         break
 
@@ -176,12 +248,10 @@ class YouTubeService:
                     items = data.get("items", [])
 
                     logger.info(
-                        "YouTube API response: query=%r page=%d "
-                        "items=%d next_page=%s",
+                        "YouTube API response: query=%r page=%d items=%d",
                         query,
                         page_number + 1,
                         len(items),
-                        bool(data.get("nextPageToken")),
                     )
 
                     for item in items:
@@ -201,25 +271,18 @@ class YouTubeService:
                             educational_only
                             and self.is_entertainment_title(title)
                         ):
-                            logger.debug(
-                                "Skipping entertainment title: %r",
-                                title,
-                            )
                             continue
 
-                        # YouTube's video search result normally provides
-                        # channelId in snippet. Keep a fallback for variants.
                         result_channel_id = str(
                             snippet.get("channelId")
                             or item_id.get("channelId")
                             or ""
                         ).strip()
 
-                        if channel_id and result_channel_id != channel_id:
-                            logger.warning(
-                                "Unexpected channel mismatch for video=%s",
-                                video_id,
-                            )
+                        if (
+                            channel_id
+                            and result_channel_id != channel_id
+                        ):
                             continue
 
                         results.append({
@@ -263,18 +326,22 @@ class YouTubeService:
         final_results = list(unique.values())
 
         logger.info(
-            "YouTube search finished: query=%r candidates=%d "
-            "failed=%s channel_filter=%s",
+            "YouTube search finished: query=%r candidates=%d failed=%s",
             query,
             len(final_results),
             failed,
-            channel_id or "none",
         )
 
-        # Do not cache failures or empty results. This allows a subsequent
-        # request to retry instead of hiding a temporary API issue.
+        # Never cache a failed response as a successful search.
         if not failed and final_results:
-            cache.set(cache_key, final_results, ttl=300)
+            try:
+                cache.set(
+                    cache_key,
+                    final_results,
+                    ttl=self.SEARCH_CACHE_TTL,
+                )
+            except Exception:
+                logger.exception("YouTube search cache write failed")
 
         return final_results
 
@@ -309,6 +376,15 @@ class YouTubeService:
         async with httpx.AsyncClient(timeout=25) as client:
             for start in range(0, len(video_ids), 50):
                 batch = video_ids[start:start + 50]
+                cache_key = "youtube:video_details:v2:" + ",".join(batch)
+
+                try:
+                    cached = cache.get(cache_key)
+                    if cached is not None:
+                        video_details.update(cached)
+                        continue
+                except Exception:
+                    logger.exception("Video details cache read failed")
 
                 try:
                     response = await client.get(
@@ -323,10 +399,13 @@ class YouTubeService:
                     data = response.json()
 
                 except httpx.HTTPStatusError as exc:
+                    reason, message = self._extract_api_error(exc.response)
                     logger.error(
-                        "YouTube video details failed: HTTP %s body=%s",
+                        "YouTube video details failed: HTTP %s "
+                        "reason=%s message=%s",
                         exc.response.status_code,
-                        exc.response.text[:300],
+                        reason,
+                        message,
                     )
                     continue
 
@@ -334,13 +413,15 @@ class YouTubeService:
                     logger.exception("YouTube video details network error")
                     continue
 
+                batch_details = {}
+
                 for item in data.get("items", []):
                     video_id = str(item.get("id") or "")
                     snippet = item.get("snippet") or {}
                     stats = item.get("statistics") or {}
                     content = item.get("contentDetails") or {}
 
-                    video_details[video_id] = {
+                    batch_details[video_id] = {
                         "title": snippet.get("title", ""),
                         "description": snippet.get("description", ""),
                         "channel": snippet.get("channelTitle", ""),
@@ -352,10 +433,29 @@ class YouTubeService:
                         "likes": self._safe_int(stats.get("likeCount")),
                     }
 
-            # Search results already contain channel IDs, so enrich the
-            # channel metadata only for IDs that are available.
+                video_details.update(batch_details)
+
+                if batch_details:
+                    try:
+                        cache.set(
+                            cache_key,
+                            batch_details,
+                            ttl=self.DETAIL_CACHE_TTL,
+                        )
+                    except Exception:
+                        logger.exception("Video details cache write failed")
+
             for start in range(0, len(channel_ids), 50):
                 batch = channel_ids[start:start + 50]
+                cache_key = "youtube:channel_details:v2:" + ",".join(batch)
+
+                try:
+                    cached = cache.get(cache_key)
+                    if cached is not None:
+                        channel_details.update(cached)
+                        continue
+                except Exception:
+                    logger.exception("Channel details cache read failed")
 
                 try:
                     response = await client.get(
@@ -370,10 +470,13 @@ class YouTubeService:
                     data = response.json()
 
                 except httpx.HTTPStatusError as exc:
+                    reason, message = self._extract_api_error(exc.response)
                     logger.error(
-                        "YouTube channel details failed: HTTP %s body=%s",
+                        "YouTube channel details failed: HTTP %s "
+                        "reason=%s message=%s",
                         exc.response.status_code,
-                        exc.response.text[:300],
+                        reason,
+                        message,
                     )
                     continue
 
@@ -383,11 +486,13 @@ class YouTubeService:
                     )
                     continue
 
+                batch_details = {}
+
                 for item in data.get("items", []):
                     snippet = item.get("snippet") or {}
                     stats = item.get("statistics") or {}
 
-                    channel_details[str(item.get("id") or "")] = {
+                    batch_details[str(item.get("id") or "")] = {
                         "channel_country": snippet.get("country", ""),
                         "channel_title": snippet.get("title", ""),
                         "channel_description": snippet.get(
@@ -397,6 +502,18 @@ class YouTubeService:
                             stats.get("subscriberCount")
                         ),
                     }
+
+                channel_details.update(batch_details)
+
+                if batch_details:
+                    try:
+                        cache.set(
+                            cache_key,
+                            batch_details,
+                            ttl=self.DETAIL_CACHE_TTL,
+                        )
+                    except Exception:
+                        logger.exception("Channel details cache write failed")
 
         enriched = []
 
@@ -414,8 +531,6 @@ class YouTubeService:
 
             channel = channel_details.get(channel_id, {})
 
-            # Keep the original search metadata when the detail request
-            # does not return a matching item.
             enriched_video = {
                 **video,
                 **details,
@@ -457,11 +572,20 @@ class YouTubeService:
             language = "en"
 
         limit = max(1, min(int(limit), 50))
-        cache_key = f"youtube:channels:v3:{query}:{language}:{limit}"
+        cache_key = f"youtube:channels:v4:{query.casefold()}:{language}:{limit}"
 
-        cached = cache.get(cache_key)
-        if cached is not None:
-            return cached
+        try:
+            cached = cache.get(cache_key)
+            if cached is not None:
+                return cached
+        except Exception:
+            logger.exception("YouTube channel cache read failed")
+
+        if self.is_search_quota_exhausted():
+            logger.warning(
+                "YouTube channel search skipped: quota circuit breaker active"
+            )
+            return []
 
         if not self.api_key:
             logger.error("YOUTUBE_API_KEY is not configured")
@@ -487,10 +611,21 @@ class YouTubeService:
                 data = response.json()
 
         except httpx.HTTPStatusError as exc:
-            logger.error(
-                "YouTube channel search failed: HTTP %s body=%s",
+            reason, message = self._extract_api_error(exc.response)
+
+            if self._is_search_quota_error(
                 exc.response.status_code,
-                exc.response.text[:300],
+                reason,
+                message,
+            ):
+                self._mark_search_quota_exhausted()
+
+            logger.error(
+                "YouTube channel search failed: HTTP %s "
+                "reason=%s message=%s",
+                exc.response.status_code,
+                reason,
+                message,
             )
             return []
 
@@ -534,7 +669,14 @@ class YouTubeService:
         )
 
         if channels:
-            cache.set(cache_key, channels, ttl=600)
+            try:
+                cache.set(
+                    cache_key,
+                    channels,
+                    ttl=self.CHANNEL_CACHE_TTL,
+                )
+            except Exception:
+                logger.exception("YouTube channel cache write failed")
 
         logger.info(
             "YouTube channel search query=%r results=%d",
@@ -553,11 +695,14 @@ class YouTubeService:
         if not video_id:
             return None
 
-        cache_key = f"youtube:video:v3:{video_id}"
-        cached = cache.get(cache_key)
+        cache_key = f"youtube:video:v4:{video_id}"
 
-        if cached is not None:
-            return cached
+        try:
+            cached = cache.get(cache_key)
+            if cached is not None:
+                return cached
+        except Exception:
+            logger.exception("YouTube video cache read failed")
 
         if not self.api_key:
             logger.error("YOUTUBE_API_KEY is not configured")
@@ -577,10 +722,13 @@ class YouTubeService:
                 items = response.json().get("items", [])
 
         except httpx.HTTPStatusError as exc:
+            reason, message = self._extract_api_error(exc.response)
             logger.error(
-                "YouTube video lookup failed: HTTP %s body=%s",
+                "YouTube video lookup failed: HTTP %s "
+                "reason=%s message=%s",
                 exc.response.status_code,
-                exc.response.text[:300],
+                reason,
+                message,
             )
             return None
 
@@ -609,7 +757,15 @@ class YouTubeService:
             "likes": self._safe_int(stats.get("likeCount")),
         }
 
-        cache.set(cache_key, result, ttl=600)
+        try:
+            cache.set(
+                cache_key,
+                result,
+                ttl=self.DETAIL_CACHE_TTL,
+            )
+        except Exception:
+            logger.exception("YouTube video cache write failed")
+
         return result
 
     @classmethod
@@ -645,6 +801,7 @@ class YouTubeService:
 
 
 youtube_service = YouTubeService()
+
 
 
 

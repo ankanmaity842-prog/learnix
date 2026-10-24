@@ -75,6 +75,49 @@ def _safe_learning_path(topic: str) -> list:
         return []
 
 
+def _empty_response(
+    topic: str,
+    language: str,
+    level: str,
+    final_limit: int,
+    topic_info: dict,
+    channel_id: str | None,
+    quota_exhausted: bool,
+) -> dict:
+    if quota_exhausted:
+        message = (
+            "YouTube search quota has been exhausted. "
+            "Please try again after the quota resets. "
+            "Previously cached results may still be available "
+            "for other topics."
+        )
+    else:
+        message = (
+            "No usable videos were found for this topic. "
+            "Try another topic or try again later."
+        )
+
+    return {
+        "topic": topic,
+        "domain": topic_info.get("domain", "General"),
+        "language": language,
+        "level": level,
+        "requested_count": final_limit,
+        "returned_count": 0,
+        "difficulty": level,
+        "prerequisites": topic_info.get("prerequisites", []),
+        "learning_path": _safe_learning_path(topic),
+        "channel_id": channel_id,
+        "recommendations": [],
+        "message": message,
+        "error_code": (
+            "YOUTUBE_SEARCH_QUOTA_EXCEEDED"
+            if quota_exhausted
+            else "NO_RECOMMENDATIONS_FOUND"
+        ),
+    }
+
+
 async def build_recommendations(
     topic: str,
     language: str,
@@ -144,30 +187,33 @@ async def build_recommendations(
         "bn": "Bengali বাংলা",
     }
 
-    # Start with the broad query first; more specific queries may return
-    # fewer results. Deduplication below removes repeated videos.
-    queries = [
-        f"{resolved_topic} tutorial",
-        f"{resolved_topic} {level_terms[level]}",
-        f"{resolved_topic} tutorial {language_terms[language]}",
-    ]
-
-    extra_queries = topic_info.get("search_queries", [])
-    if isinstance(extra_queries, list):
-        for item in extra_queries:
-            if len(queries) >= 5:
-                break
-
-            if isinstance(item, str) and item.strip():
-                candidate = (
-                    f"{resolved_topic} {item.strip()} "
-                    f"{language_terms[language]}"
-                )
-
-                if candidate not in queries:
-                    queries.append(candidate)
+    # A cached result for the same query is reused by YouTubeService.
+    # Keep the initial query broad to avoid spending quota unnecessarily.
+    queries = [f"{resolved_topic} tutorial"]
 
     candidates: dict[str, dict] = {}
+
+    def add_candidates(results: list[dict] | None) -> None:
+        for video in results or []:
+            video_id = str(
+                video.get("video_id") or video.get("id") or ""
+            ).strip()
+
+            if not video_id:
+                continue
+
+            result_channel_id = str(
+                video.get("channel_id") or ""
+            ).strip()
+
+            if channel_id and result_channel_id != channel_id:
+                continue
+
+            candidates[video_id] = {
+                **video,
+                "video_id": video_id,
+                "channel_id": result_channel_id,
+            }
 
     for search_query in queries:
         try:
@@ -175,7 +221,7 @@ async def build_recommendations(
                 query=search_query,
                 language=language,
                 limit=50,
-                max_pages=2,
+                max_pages=1,
                 educational_only=True,
                 channel_id=channel_id,
                 level=level,
@@ -192,32 +238,44 @@ async def build_recommendations(
             search_query,
             len(results or []),
         )
+        add_candidates(results)
 
-        for video in results or []:
-            video_id = str(
-                video.get("video_id") or video.get("id") or ""
-            ).strip()
+    # Run one fallback search only when the first search did not return
+    # enough candidates. Never run it if quota exhaustion is detected.
+    if (
+        len(candidates) < final_limit
+        and not youtube_service.is_search_quota_exhausted()
+    ):
+        fallback_query = (
+            f"{resolved_topic} {level_terms[level]} "
+            f"{language_terms[language]}"
+        )
 
-            if not video_id:
-                logger.warning(
-                    "Skipping YouTube result without video ID: %r",
-                    video.get("title"),
+        if fallback_query.casefold() not in {
+            query.casefold() for query in queries
+        }:
+            try:
+                fallback_results = await youtube_service.search_videos(
+                    query=fallback_query,
+                    language=language,
+                    limit=50,
+                    max_pages=1,
+                    educational_only=True,
+                    channel_id=channel_id,
+                    level=level,
                 )
-                continue
-
-            result_channel_id = str(
-                video.get("channel_id") or ""
-            ).strip()
-
-            # Only enforce channel filtering when a channel was requested.
-            if channel_id and result_channel_id != channel_id:
-                continue
-
-            candidates[video_id] = {
-                **video,
-                "video_id": video_id,
-                "channel_id": result_channel_id,
-            }
+                logger.info(
+                    "Recommendation fallback completed: "
+                    "query=%r results=%d",
+                    fallback_query,
+                    len(fallback_results or []),
+                )
+                add_candidates(fallback_results)
+            except Exception:
+                logger.exception(
+                    "YouTube fallback search failed: query=%r",
+                    fallback_query,
+                )
 
     logger.info(
         "Recommendation candidates: topic=%r channel_filter=%s count=%d",
@@ -227,25 +285,17 @@ async def build_recommendations(
     )
 
     if not candidates:
-        return {
-            "topic": resolved_topic,
-            "domain": topic_info.get("domain", "General"),
-            "language": language,
-            "level": level,
-            "requested_count": final_limit,
-            "returned_count": 0,
-            "difficulty": level,
-            "prerequisites": topic_info.get("prerequisites", []),
-            "learning_path": _safe_learning_path(resolved_topic),
-            # None is expected for general topic searches.
-            "channel_id": channel_id,
-            "recommendations": [],
-            "message": (
-                "YouTube search returned no usable videos. Check the "
-                "YouTube search logs for API errors, empty API results, "
-                "or results removed by the title filter."
+        return _empty_response(
+            topic=resolved_topic,
+            language=language,
+            level=level,
+            final_limit=final_limit,
+            topic_info=topic_info,
+            channel_id=channel_id,
+            quota_exhausted=(
+                youtube_service.is_search_quota_exhausted()
             ),
-        }
+        )
 
     try:
         enriched = await youtube_service.enrich_search_results(
@@ -317,8 +367,7 @@ async def build_recommendations(
         logger.exception("Recommendation selection failed")
         selected = ranked[:final_limit]
 
-    # If selection applies overly restrictive criteria, do not silently
-    # return zero when usable ranked results are available.
+    # Do not return zero if usable videos remain available.
     if not selected and ranked:
         logger.warning(
             "Level selection returned zero results; using ranked fallback"
@@ -345,9 +394,13 @@ async def build_recommendations(
         "difficulty": level,
         "prerequisites": topic_info.get("prerequisites", []),
         "learning_path": _safe_learning_path(resolved_topic),
-        # This is None for /for-topic/{topic}, unless explicitly supplied.
         "channel_id": channel_id,
         "recommendations": selected,
+        "message": (
+            "Some recommendations may be unavailable."
+            if len(selected) < final_limit
+            else None
+        ),
     }
 
 
@@ -392,6 +445,14 @@ async def recommended_channels(
         "language": language,
         "returned_count": len(channels),
         "channels": channels,
+        "message": (
+            "YouTube search quota has been exhausted."
+            if (
+                not channels
+                and youtube_service.is_search_quota_exhausted()
+            )
+            else None
+        ),
     }
 
 
@@ -426,6 +487,7 @@ async def next_recommendation():
         "recommendation": None,
         "reason": "No learning history available",
     }
+
 
 
 
