@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import {
   Link,
@@ -10,12 +9,114 @@ import {
 import quizService from "../../services/quizService";
 import "./VideoLearning.css";
 
+function linkifyDescription(description, videoId) {
+  const pattern =
+    /https?:\/\/[^\s<>]+|(?:\b\d{1,2}:)?\b\d{1,2}:\d{2}\b/g;
+
+  const parts = [];
+  let lastIndex = 0;
+  let match;
+  let key = 0;
+
+  while ((match = pattern.exec(description)) !== null) {
+    const value = match[0];
+    const start = match.index;
+
+    if (start > lastIndex) {
+      parts.push(description.slice(lastIndex, start));
+    }
+
+    if (/^https?:\/\//i.test(value)) {
+      // Keep punctuation outside the clickable URL.
+      const url = value.replace(/[.,!?;:)]+$/, "");
+      const trailing = value.slice(url.length);
+
+      if (url) {
+        parts.push(
+          <a
+            key={`url-${key++}`}
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="youtube-description-link"
+          >
+            {url}
+          </a>
+        );
+      }
+
+      if (trailing) {
+        parts.push(trailing);
+      }
+    } else {
+      const seconds = value.split(":").reduce(
+        (total, part) => total * 60 + Number(part),
+        0
+      );
+
+      parts.push(
+        <a
+          key={`timestamp-${key++}`}
+          href={`https://www.youtube.com/watch?v=${encodeURIComponent(
+            videoId
+          )}&t=${seconds}s`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="youtube-description-link"
+          aria-label={`Open video at ${value}`}
+        >
+          {value}
+        </a>
+      );
+    }
+
+    lastIndex = start + value.length;
+  }
+
+  if (lastIndex < description.length) {
+    parts.push(description.slice(lastIndex));
+  }
+
+  return parts;
+}
+
+function YouTubeDescription({ description, videoId }) {
+  const [expanded, setExpanded] = useState(false);
+
+  if (!description?.trim()) {
+    return null;
+  }
+
+  return (
+    <section className="youtube-description">
+      <div
+        className={`youtube-description__text ${
+          expanded ? "is-expanded" : "is-collapsed"
+        }`}
+      >
+        {linkifyDescription(description, videoId)}
+      </div>
+
+      <button
+        type="button"
+        className="youtube-description__toggle"
+        onClick={() => setExpanded((current) => !current)}
+        aria-expanded={expanded}
+      >
+        {expanded ? "Show less" : "Show more"}
+      </button>
+    </section>
+  );
+}
+
 function VideoLearning() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { videoId } = useParams();
+  const { videoId: routeVideoId } = useParams();
 
   const video = location.state?.video;
+
+  const videoId = routeVideoId || video?.video_id || video?.id;
 
   const title = video?.title || "Learning Video";
   const channel = video?.channel || "Educational channel";
@@ -28,6 +129,13 @@ function VideoLearning() {
   const [quizError, setQuizError] = useState("");
 
   const handleGenerateQuiz = async () => {
+    if (!videoId) {
+      setQuizError(
+        "Video information is missing. Return to search and open the lesson again."
+      );
+      return;
+    }
+
     setQuizLoading(true);
     setQuizError("");
 
@@ -44,7 +152,7 @@ function VideoLearning() {
       );
 
       if (
-        !Array.isArray(quiz.questions) ||
+        !Array.isArray(quiz?.questions) ||
         quiz.questions.length === 0
       ) {
         throw new Error("No quiz questions were generated.");
@@ -79,26 +187,51 @@ function VideoLearning() {
       <section className="learning-layout">
         <div className="video-main">
           <div className="video-player">
-            <iframe
-              src={`https://www.youtube-nocookie.com/embed/${encodeURIComponent(
-                videoId
-              )}?rel=0&playsinline=1`}
-              title={title}
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-              allowFullScreen
-            />
+            {videoId ? (
+              <iframe
+                src={`https://www.youtube-nocookie.com/embed/${encodeURIComponent(
+                  videoId
+                )}?rel=0&playsinline=1`}
+                title={title}
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                allowFullScreen
+              />
+            ) : (
+              <div className="video-player-error" role="alert">
+                Video information is unavailable. Return to search and
+                select a lesson again.
+              </div>
+            )}
           </div>
 
           <div className="video-details">
             <span>RECOMMENDED LESSON</span>
+
             <h1>{title}</h1>
-            <p>{description}</p>
 
             <div className="video-meta">
               <span>{channel}</span>
               <span>{language.toUpperCase()}</span>
               <span>{difficulty}</span>
             </div>
+
+            <YouTubeDescription
+              description={description}
+              videoId={videoId}
+            />
+
+            {videoId && (
+              <a
+                className="youtube-link"
+                href={`https://www.youtube.com/watch?v=${encodeURIComponent(
+                  videoId
+                )}`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Watch on YouTube ↗
+              </a>
+            )}
           </div>
         </div>
 
@@ -149,6 +282,7 @@ function VideoLearning() {
       <section className="video-quiz-generator">
         <span>LESSON ASSESSMENT</span>
         <h2>Test what this video teaches</h2>
+
         <p>
           Learnix uses available captions to generate questions
           about the concepts explained in this lesson.
@@ -175,7 +309,7 @@ function VideoLearning() {
         <button
           type="button"
           onClick={handleGenerateQuiz}
-          disabled={quizLoading}
+          disabled={quizLoading || !videoId}
         >
           {quizLoading
             ? "Generating lesson quiz..."
@@ -187,3 +321,4 @@ function VideoLearning() {
 }
 
 export default VideoLearning;
+

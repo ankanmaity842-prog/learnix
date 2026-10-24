@@ -7,10 +7,7 @@ function VideoCard({ video, onOpen }) {
   const navigate = useNavigate();
 
   const videoId = video?.video_id || video?.id;
-
   const title = video?.title || "Untitled lesson";
-  const description =
-    video?.description || "Open this lesson on YouTube to view its details.";
 
   const difficulty = [
     "beginner",
@@ -20,19 +17,25 @@ function VideoCard({ video, onOpen }) {
     ? String(video.difficulty).toLowerCase()
     : "beginner";
 
-  const youtubeUrl = videoId
-    ? `https://www.youtube.com/watch?v=${encodeURIComponent(videoId)}`
-    : null;
+  const thumbnail =
+    video?.thumbnail ||
+    (videoId
+      ? `https://i.ytimg.com/vi/${encodeURIComponent(videoId)}/hqdefault.jpg`
+      : "");
 
   const handleOpen = () => {
     if (onOpen) {
-      onOpen(video);
+      onOpen({
+        ...video,
+        video_id: videoId,
+        difficulty,
+      });
       return;
     }
 
     if (!videoId) return;
 
-    navigate(`/video/${videoId}`, {
+    navigate(`/video/${encodeURIComponent(videoId)}`, {
       state: {
         video: {
           ...video,
@@ -43,34 +46,22 @@ function VideoCard({ video, onOpen }) {
     });
   };
 
-  const handleDescriptionClick = () => {
-    if (youtubeUrl) {
-      window.open(
-        youtubeUrl,
-        "_blank",
-        "noopener,noreferrer"
-      );
-    }
-  };
-
   return (
     <article className="video-card">
       <button
         type="button"
         className="video-thumbnail"
         onClick={handleOpen}
+        disabled={!videoId}
         aria-label={`Start learning: ${title}`}
       >
-        <img
-          src={
-            video?.thumbnail ||
-            (videoId
-              ? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`
-              : "")
-          }
-          alt={title}
-          loading="lazy"
-        />
+        {thumbnail && (
+          <img
+            src={thumbnail}
+            alt={title}
+            loading="lazy"
+          />
+        )}
 
         <span className="video-duration">
           {video?.duration || "Lesson"}
@@ -87,25 +78,12 @@ function VideoCard({ video, onOpen }) {
         <div className="video-meta">
           <DifficultyBadge level={difficulty} />
 
-          {video?.views ? (
+          {video?.views != null && video.views !== "" && (
             <span>
               {Number(video.views).toLocaleString()} views
             </span>
-          ) : null}
+          )}
         </div>
-
-        <button
-          type="button"
-          className="video-description-link"
-          onClick={handleDescriptionClick}
-          disabled={!youtubeUrl}
-          title="Open the original video on YouTube"
-        >
-          {description}
-          <span className="description-action">
-            Watch on YouTube ↗
-          </span>
-        </button>
 
         <button
           type="button"
@@ -121,3 +99,5 @@ function VideoCard({ video, onOpen }) {
 }
 
 export default VideoCard;
+
+
